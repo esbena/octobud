@@ -138,6 +138,7 @@
 							selected={!isSettingsRoute && selectedViewId === normalizeViewId(view.id)}
 							onSelect={onSelectView}
 							onEdit={onEditView}
+							showCounts={false}
 							{reorderMode}
 							{onDragStart}
 							{onDragOver}
