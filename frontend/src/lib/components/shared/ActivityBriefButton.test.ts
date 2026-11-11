@@ -40,6 +40,14 @@ it("hides the action until enabled and for unsupported notifications", async () 
 	expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
 
+it("shows the individual action for normalized pull-request notifications", () => {
+	activityBriefEnabled.set(true);
+	render(ActivityBriefButton, {
+		notification: { ...notification, subjectType: "pull_request" },
+	});
+	expect(screen.getByRole("button", { name: "Summarize activity" })).toBeEnabled();
+});
+
 it("queues only the selected notification using the current lookback without opening the card", async () => {
 	activityBriefEnabled.set(true);
 	activityBriefDays.set(7);

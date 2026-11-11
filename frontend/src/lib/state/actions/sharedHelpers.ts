@@ -64,7 +64,7 @@ export function createSharedHelpers(
 				page: currentPage,
 				...(repositoryIds.length > 0 ? { repositoryIds } : {}),
 				filters: {
-					query: currentQuery || undefined,
+					query: currentQuery,
 					filters: [],
 				},
 			});

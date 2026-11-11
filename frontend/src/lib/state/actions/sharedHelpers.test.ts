@@ -98,7 +98,7 @@ describe("SharedHelpers", () => {
 	});
 
 	describe("refresh", () => {
-		it("fetches notifications and updates stores", async () => {
+		it("preserves an empty submitted query when refreshing notifications and stores", async () => {
 			const mockResponse = {
 				items: [
 					{
@@ -128,7 +128,7 @@ describe("SharedHelpers", () => {
 			expect(fetchNotifications).toHaveBeenCalledWith({
 				page: 1,
 				filters: {
-					query: undefined,
+					query: "",
 					filters: [],
 				},
 			});

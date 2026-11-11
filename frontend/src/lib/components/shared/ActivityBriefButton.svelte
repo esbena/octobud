@@ -12,7 +12,7 @@
 	export let notification: Pick<Notification, "githubId" | "effectiveSortDate" | "subjectType">;
 	let submitting = false;
 	let error = "";
-	$: supported = ["issue", "pullrequest", "pr", "discussion"].includes(
+	$: supported = ["issue", "pullrequest", "pull_request", "pr", "discussion"].includes(
 		notification.subjectType.toLowerCase()
 	);
 	$: brief = matchingActivityBrief(

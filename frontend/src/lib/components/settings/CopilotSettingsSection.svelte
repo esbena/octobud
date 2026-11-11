@@ -81,7 +81,8 @@
 							>
 							<p class="mt-1 text-xs text-gray-600 dark:text-gray-400">
 								Brief updates for quick triage, with requests for you shown first. Only runs when
-								you click <span class="font-medium">Summarize 10 more</span>.
+								you click <span class="font-medium">Summarize 10 more</span> or a notification's
+								<span class="font-medium">Summarize activity</span> action.
 							</p>
 						</div>
 						<label class="relative flex shrink-0 cursor-pointer items-center">
