@@ -23,6 +23,7 @@ Understanding how Octobud works under the hood:
 - **[How Syncing Works](concepts/sync.md)** - Background sync process and rule application
 - **[Query Engine](concepts/query-engine.md)** - Technical overview of query parsing and evaluation
 - **[Action Hints](concepts/action-hints.md)** - How the UI predicts notification dismissal
+- **[Local Copilot SDK](concepts/copilot-runtime.md)** - Run prompts with the Go SDK
 
 ## Installation & Configuration
 
@@ -31,4 +32,3 @@ Understanding how Octobud works under the hood:
 ## Contributing
 
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to Octobud
-
