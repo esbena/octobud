@@ -103,6 +103,11 @@ func WithSyncService(
 	}
 }
 
+// StopActivityBriefs cancels and joins owned model runtimes during shutdown.
+func (h *Handler) StopActivityBriefs() {
+	h.notificationsH.StopActivityBriefs()
+}
+
 // WithScheduler configures the handler with a scheduler for queuing jobs.
 func WithScheduler(scheduler jobs.Scheduler) HandlerOption {
 	return func(h *Handler) {
@@ -170,13 +175,14 @@ func NewHandler(store db.Store, opts ...HandlerOption) *Handler {
 		logger, store, notificationsSvc, repositorySvc, tagSvc,
 		h.timelineSvc, h.githubClient, h.syncService, h.scheduler, authService,
 	)
+	copilotSettings := h.notificationsH.ConfigureCopilotSettings()
 	h.tagsH = tags.New(logger, tagSvc, authService)
 	h.viewsH = views.New(logger, viewSvc, authService)
 	h.rulesH = rules.NewWithScheduler(logger, ruleSvc, viewSvc, h.scheduler, authService)
 	h.repositoriesH = repositories.New(logger, repositorySvc, authService)
 
 	// Create user handler
-	h.userH = apiuser.New(logger, authService)
+	h.userH = apiuser.New(logger, authService).WithCopilotSettings(copilotSettings)
 
 	// Wire up scheduler and sync state
 	if h.scheduler != nil {

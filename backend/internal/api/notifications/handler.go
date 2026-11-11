@@ -16,10 +16,12 @@
 package notifications
 
 import (
-	"github.com/go-chi/chi/v5"
-	"go.uber.org/zap"
+	"sync"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/octobud-hq/octobud/backend/internal/core/activitybrief"
 	authsvc "github.com/octobud-hq/octobud/backend/internal/core/auth"
+	"github.com/octobud-hq/octobud/backend/internal/core/copilotsettings"
 	"github.com/octobud-hq/octobud/backend/internal/core/notification"
 	"github.com/octobud-hq/octobud/backend/internal/core/repository"
 	"github.com/octobud-hq/octobud/backend/internal/core/tag"
@@ -27,21 +29,26 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/db"
 	githubinterfaces "github.com/octobud-hq/octobud/backend/internal/github/interfaces"
 	"github.com/octobud-hq/octobud/backend/internal/jobs"
-	"github.com/octobud-hq/octobud/backend/internal/sync"
+	syncsvc "github.com/octobud-hq/octobud/backend/internal/sync"
+	"go.uber.org/zap"
 )
 
 // Handler handles notification-related HTTP routes
 type Handler struct {
-	logger        *zap.Logger
-	store         db.Store
-	notifications notification.NotificationService
-	repositorySvc repository.RepositoryService
-	tagSvc        tag.TagService
-	timelineSvc   *timelinesvc.Service
-	githubClient  githubinterfaces.Client
-	syncService   sync.SyncOperations
-	scheduler     jobs.Scheduler
-	authSvc       authsvc.AuthService
+	logger          *zap.Logger
+	store           db.Store
+	notifications   notification.NotificationService
+	repositorySvc   repository.RepositoryService
+	tagSvc          tag.TagService
+	timelineSvc     *timelinesvc.Service
+	githubClient    githubinterfaces.Client
+	syncService     syncsvc.SyncOperations
+	scheduler       jobs.Scheduler
+	authSvc         authsvc.AuthService
+	briefFactory    func(string) activitybrief.Summarizer
+	briefQueue      *activitybrief.Queue
+	briefBatchMu    sync.Mutex
+	copilotSettings *copilotsettings.Service
 }
 
 // New creates a new notifications handler
@@ -53,7 +60,7 @@ func New(
 	tagSvc tag.TagService,
 	timelineSvc *timelinesvc.Service,
 	githubClient githubinterfaces.Client,
-	syncService sync.SyncOperations,
+	syncService syncsvc.SyncOperations,
 	scheduler jobs.Scheduler,
 	authSvc authsvc.AuthService,
 ) *Handler {
@@ -79,6 +86,7 @@ func (h *Handler) Register(r chi.Router) {
 		r.Get("/repositories", h.handleListRepositoryCounts)
 		r.Get("/{githubID}", h.handleGetNotification)
 		r.Get("/{githubID}/timeline", h.handleGetNotificationTimeline)
+		r.Post("/{githubID}/activity-brief", h.handleActivityBrief)
 		r.Get("/{githubID}/review-comments", h.handleGetReviewComments)
 		r.Get("/{githubID}/pr-commits", h.handleGetPRCommits)
 		r.Post("/{githubID}/refresh-subject", h.handleRefreshNotificationSubject)

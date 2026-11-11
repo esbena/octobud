@@ -30,6 +30,7 @@ import (
 
 	"github.com/octobud-hq/octobud/backend/internal/api/helpers"
 	authsvc "github.com/octobud-hq/octobud/backend/internal/core/auth"
+	"github.com/octobud-hq/octobud/backend/internal/core/copilotsettings"
 	coregithub "github.com/octobud-hq/octobud/backend/internal/core/github"
 	"github.com/octobud-hq/octobud/backend/internal/core/syncstate"
 	"github.com/octobud-hq/octobud/backend/internal/core/update"
@@ -40,14 +41,15 @@ import (
 
 // Handler handles user-related HTTP routes
 type Handler struct {
-	logger        *zap.Logger
-	authSvc       authsvc.AuthService
-	store         db.Store                   // For database operations
-	scheduler     jobs.Scheduler             // For queueing sync jobs
-	syncStateSvc  syncstate.SyncStateService // For sync state operations
-	tokenManager  TokenManagerInterface      // For GitHub token management
-	updateService *update.Service            // For update checking
-	osActionsSvc  osactions.Service          // For OS-specific actions (restart, browser tabs, etc.)
+	logger          *zap.Logger
+	authSvc         authsvc.AuthService
+	store           db.Store                   // For database operations
+	scheduler       jobs.Scheduler             // For queueing sync jobs
+	syncStateSvc    syncstate.SyncStateService // For sync state operations
+	tokenManager    TokenManagerInterface      // For GitHub token management
+	updateService   *update.Service            // For update checking
+	osActionsSvc    osactions.Service          // For OS-specific actions (restart, browser tabs, etc.)
+	copilotSettings *copilotsettings.Service
 }
 
 // New creates a new user handler
@@ -117,6 +119,10 @@ func (h *Handler) Register(r chi.Router) {
 	r.Route("/user", func(r chi.Router) {
 		// User info (based on GitHub identity)
 		r.Get("/me", h.HandleGetCurrentUser)
+		if h.copilotSettings != nil {
+			r.Get("/copilot-settings", h.handleGetCopilotSettings)
+			r.Put("/copilot-settings", h.handleUpdateCopilotSettings)
+		}
 
 		// Sync settings
 		r.Get("/sync-settings", h.HandleGetSyncSettings)

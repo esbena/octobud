@@ -326,6 +326,7 @@ func runServer(cfg appConfig, trayApp *tray.Tray, logWriter *lumberjack.Logger) 
 		fmt.Println("     GitHub: Not configured (configure in app)")
 	}
 	apiHandler := api.NewHandler(store, opts...)
+	defer apiHandler.StopActivityBriefs()
 
 	// Pass navigation broadcaster to tray if available
 	if trayApp != nil {
