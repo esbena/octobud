@@ -29,7 +29,8 @@ export interface FilterFieldConfig {
 export const FILTER_FIELDS: FilterFieldConfig[] = [
 	{
 		value: "in",
-		description: "View context (inbox, archive, snoozed, filtered, anywhere)",
+		description:
+			'Location or saved view (e.g. inbox or "Low priority"; named views are not allowed in rule queries)',
 		valueSuggestions: ["inbox", "archive", "snoozed", "filtered", "anywhere"],
 	},
 	{

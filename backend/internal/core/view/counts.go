@@ -52,7 +52,7 @@ func (s *Service) calculateViewUnreadCount(
 	}
 
 	// Use unified BuildQuery which applies business rules based on query content
-	dbQuery, err := query.BuildQuery(queryStr, 1, 0)
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).BuildQuery(queryStr, 1, 0, true)
 
 	if err != nil {
 		return 0, errors.Join(ErrFailedToBuildQuery, err)

@@ -26,6 +26,7 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/db"
 	"github.com/octobud-hq/octobud/backend/internal/models"
 	"github.com/octobud-hq/octobud/backend/internal/query"
+	"github.com/octobud-hq/octobud/backend/internal/query/parse"
 )
 
 // Error definitions
@@ -60,6 +61,7 @@ var (
 	ErrQueryRequired           = errors.New("query is required")
 	ErrQueryCannotBeEmpty      = errors.New("query cannot be empty")
 	ErrCannotReorderSystemView = errors.New("cannot reorder system view")
+	ErrViewReferenced          = errors.New("view is referenced by other views")
 )
 
 // GetView returns a view by ID
@@ -267,6 +269,9 @@ func (s *Service) CreateView(
 			ErrSlugReserved,
 		)
 	}
+	if parse.IsBuiltinInValue(name) {
+		return models.View{}, fmt.Errorf("%q: %w", name, ErrSlugReserved)
+	}
 
 	queryStr = strings.TrimSpace(queryStr)
 	if queryStr == "" {
@@ -274,7 +279,7 @@ func (s *Service) CreateView(
 	}
 
 	// Validate the query by attempting to parse and validate it
-	if _, err := query.ParseAndValidate(queryStr); err != nil {
+	if _, err := query.ViewReferences(queryStr); err != nil {
 		return models.View{}, errors.Join(ErrInvalidQuery, err)
 	}
 
@@ -288,8 +293,24 @@ func (s *Service) CreateView(
 	if isDefault != nil {
 		params.IsDefault = *isDefault
 	}
-
-	view, err := s.queries.CreateView(ctx, userID, params)
+	var view db.View
+	err := s.queries.WithViewTransaction(ctx, func(store db.ViewStore) error {
+		views, err := store.ListViews(ctx, userID)
+		if err != nil {
+			return errors.Join(ErrFailedToLoadViews, err)
+		}
+		for _, existing := range views {
+			if strings.EqualFold(existing.Name, name) {
+				return ErrViewNameAlreadyExists
+			}
+		}
+		views = append(views, db.View{Name: name, Query: params.Query})
+		if validationErr := query.ValidateViewDefinitions(userID, views); validationErr != nil {
+			return errors.Join(ErrInvalidQuery, validationErr)
+		}
+		view, err = store.CreateView(ctx, userID, params)
+		return err
+	})
 	if err != nil {
 		if models.IsUniqueViolation(err) {
 			return models.View{}, errors.Join(ErrViewNameAlreadyExists, err)
@@ -369,13 +390,18 @@ func (s *Service) UpdateView(
 			return models.View{}, ErrQueryCannotBeEmpty
 		}
 		// Validate the query by attempting to parse and validate it
-		if _, err := query.ParseAndValidate(queryTrimmed); err != nil {
+		if _, err := query.ViewReferences(queryTrimmed); err != nil {
 			return models.View{}, errors.Join(ErrInvalidQuery, err)
 		}
 		params.Query = sql.NullString{String: queryTrimmed, Valid: true}
 	}
 
-	view, err := s.queries.UpdateView(ctx, userID, params)
+	var view db.View
+	err := s.queries.WithViewTransaction(ctx, func(store db.ViewStore) error {
+		updated, updateErr := updateViewAndReferences(ctx, store, userID, params)
+		view = updated
+		return updateErr
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.View{}, errors.Join(ErrViewNotFound, err)
@@ -408,6 +434,73 @@ func (s *Service) UpdateView(
 	return resp, nil
 }
 
+func updateViewAndReferences(
+	ctx context.Context,
+	store db.ViewStore,
+	userID string,
+	params db.UpdateViewParams,
+) (db.View, error) {
+	views, err := store.ListViews(ctx, userID)
+	if err != nil {
+		return db.View{}, errors.Join(ErrFailedToLoadViews, err)
+	}
+	current, err := store.GetView(ctx, userID, params.ID)
+	if err != nil {
+		return db.View{}, err
+	}
+	newName := current.Name
+	if params.Name.Valid {
+		newName = params.Name.String
+	}
+	renamed := newName != current.Name
+	if renamed && parse.IsBuiltinInValue(newName) {
+		return db.View{}, fmt.Errorf("%q: %w", newName, ErrSlugReserved)
+	}
+	var rewrites []db.UpdateViewParams
+	for i := range views {
+		if views[i].ID == params.ID {
+			views[i].Name = newName
+			if params.Query.Valid {
+				views[i].Query = params.Query
+			}
+		} else if strings.EqualFold(views[i].Name, newName) {
+			return db.View{}, ErrViewNameAlreadyExists
+		}
+		if !renamed {
+			continue
+		}
+		rewritten, rewriteErr := query.RewriteViewReferences(
+			views[i].Query.String,
+			current.Name,
+			newName,
+		)
+		if rewriteErr != nil {
+			return db.View{}, errors.Join(ErrInvalidQuery, rewriteErr)
+		}
+		if rewritten != views[i].Query.String {
+			views[i].Query = sql.NullString{String: rewritten, Valid: true}
+			if views[i].ID == params.ID {
+				params.Query = views[i].Query
+			} else {
+				rewrites = append(rewrites, db.UpdateViewParams{ID: views[i].ID, Query: views[i].Query})
+			}
+		}
+	}
+	if validationErr := query.ValidateViewDefinitions(userID, views); validationErr != nil {
+		return db.View{}, errors.Join(ErrInvalidQuery, validationErr)
+	}
+	updated, err := store.UpdateView(ctx, userID, params)
+	if err != nil {
+		return db.View{}, err
+	}
+	for _, rewrite := range rewrites {
+		if _, updateErr := store.UpdateView(ctx, userID, rewrite); updateErr != nil {
+			return db.View{}, updateErr
+		}
+	}
+	return updated, nil
+}
+
 // DeleteView deletes a view, returning the count of linked rules if any
 // If force is true, the view will be deleted even if it has linked rules (which will be cascade deleted)
 func (s *Service) DeleteView(
@@ -416,28 +509,52 @@ func (s *Service) DeleteView(
 	viewID string,
 	force bool,
 ) (linkedRuleCount int, err error) {
-	// Check if there are any rules linked to this view
-	linkedRules, err := s.queries.GetRulesByViewID(
-		ctx,
-		userID,
-		sql.NullString{String: viewID, Valid: true},
-	)
+	err = s.queries.WithViewTransaction(ctx, func(store db.ViewStore) error {
+		current, getErr := store.GetView(ctx, userID, viewID)
+		if getErr != nil {
+			return getErr
+		}
+		views, loadErr := store.ListViews(ctx, userID)
+		if loadErr != nil {
+			return errors.Join(ErrFailedToLoadViews, loadErr)
+		}
+		var dependents []string
+		for _, view := range views {
+			if view.ID == viewID {
+				continue
+			}
+			references, referenceErr := query.ReferencesView(view.Query.String, current.Name)
+			if referenceErr != nil {
+				return errors.Join(ErrInvalidQuery, referenceErr)
+			}
+			if references {
+				dependents = append(dependents, fmt.Sprintf("%q", view.Name))
+			}
+		}
+		if len(dependents) > 0 {
+			return fmt.Errorf("%w: %s", ErrViewReferenced, strings.Join(dependents, ", "))
+		}
+		linkedRules, rulesErr := store.GetRulesByViewID(
+			ctx, userID, sql.NullString{String: viewID, Valid: true},
+		)
+		if rulesErr != nil {
+			return errors.Join(ErrFailedToCheckLinkedRules, rulesErr)
+		}
+		linkedRuleCount = len(linkedRules)
+		if linkedRuleCount > 0 && !force {
+			return nil
+		}
+		_, deleteErr := store.DeleteView(ctx, userID, viewID)
+		return deleteErr
+	})
 	if err != nil {
-		return 0, errors.Join(ErrFailedToCheckLinkedRules, err)
-	}
-
-	linkedRuleCount = len(linkedRules)
-
-	// If there are linked rules and force is not set, return the count (caller should handle the conflict)
-	if linkedRuleCount > 0 && !force {
-		return linkedRuleCount, nil
-	}
-
-	if _, err := s.queries.DeleteView(ctx, userID, viewID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, errors.Join(ErrViewNotFound, err)
 		}
 		return 0, errors.Join(ErrFailedToDeleteView, err)
+	}
+	if linkedRuleCount > 0 && !force {
+		return linkedRuleCount, nil
 	}
 
 	// Best effort: drop the view's repository default along with it. A failure here only

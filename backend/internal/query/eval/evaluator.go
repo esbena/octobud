@@ -28,7 +28,8 @@ import (
 
 // Evaluator evaluates whether a notification matches a query AST
 type Evaluator struct {
-	ast parse.Node
+	ast   parse.Node
+	Views map[string]*Evaluator
 }
 
 // NewEvaluator creates a new evaluator for the given AST node
@@ -143,6 +144,10 @@ func (e *Evaluator) evaluateFieldValue(
 	case "is":
 		return e.evaluateIsCondition(notif, value)
 	case "in":
+		value = strings.ToLower(strings.TrimSpace(value))
+		if view, ok := e.Views[value]; ok {
+			return view.Matches(notif, repo)
+		}
 		return e.evaluateInCondition(notif, value)
 	case "repo":
 		if repo != nil {

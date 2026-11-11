@@ -307,6 +307,10 @@ func (h *Handler) handleDeleteView(w http.ResponseWriter, r *http.Request) {
 	// Check if there are any rules linked to this view
 	linkedRuleCount, err := h.viewSvc.DeleteView(ctx, userID, viewID, force)
 	if err != nil {
+		if errors.Is(err, viewcore.ErrViewReferenced) {
+			helpers.WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, viewcore.ErrViewNotFound) {
 			helpers.WriteError(w, http.StatusNotFound, err.Error())
 			return

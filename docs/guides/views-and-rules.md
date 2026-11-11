@@ -98,6 +98,20 @@ When you open the view it starts scoped to those repositories. The selector stil
 - **Edit** - Right-click a view to edit
 - **Delete** - Right-click and select delete
 
+### Views Based on Other Views
+
+Use `in:"View name"` to match another custom view's saved query. For example, keep a **Low priority** view for noise and define an actionable view as:
+
+```
+in:inbox,filtered -in:"Low priority"
+```
+
+The low-priority view keeps its own unread badge. Topic-focused views can overlap it or exclude it explicitly; items without a topic are not automatically low priority.
+
+Membership follows saved query changes immediately. It does not depend on sidebar order, which views you have opened, or their default repository selections. Renaming a view updates its references in other saved view queries. Deletion is blocked until dependent views remove their references.
+
+Use the full view name, matched case-insensitively. Missing references and cycles are errors.
+
 ## Rules
 
 Rules automatically apply actions to notifications that match a query. They help automate your workflow.
@@ -131,7 +145,7 @@ Start with a basic rule to see how they work:
 - **View-linked** - Link to a view's query (automatically updates when the view changes)
 
 **Step 2: Define the Query or View**
-- For query-based: Enter a filter query (same syntax as views)
+- For query-based: Enter a filter query (`in:` accepts only built-in locations, not named views)
 - For view-linked: Select an existing custom view from the dropdown
 
 **Step 3: Configure Rule Details**
@@ -240,4 +254,3 @@ Tags help you categorize and organize notifications.
 4. **Test Queries First** - Test your query in the search bar before using in a rule
 5. **Review Filtered** - Periodically enter the `in:filtered` query in the search bar to ensure rules aren't unexpectedly hiding important notifications
 6. **Combine Tags and Rules** - Use rules to auto-tag, then create views based on tags
-

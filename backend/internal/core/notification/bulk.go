@@ -130,7 +130,8 @@ func (s *Service) executeBulkUpdateByQuery(
 	target models.BulkOperationTarget,
 	params models.BulkUpdateParams,
 ) (int64, error) {
-	dbQuery, err := query.BuildQuery(target.Query, 0, 0)
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).
+		BuildQuery(target.Query, 0, 0, true)
 	if err != nil {
 		return 0, errors.Join(ErrFailedToBuildQuery, err)
 	}

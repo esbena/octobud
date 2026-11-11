@@ -50,9 +50,10 @@ var (
 
 // Builder builds SQL queries from AST nodes
 type Builder struct {
-	joins      map[string]bool
-	args       []interface{}
-	argCounter int
+	joins       map[string]bool
+	args        []interface{}
+	argCounter  int
+	ResolveView func(string) (db.NotificationQuery, error)
 }
 
 // NewBuilder creates a new SQL builder
@@ -285,7 +286,22 @@ func (b *Builder) handleInOperator(values []string) (string, error) {
 			// No filter - show all
 			conditions = append(conditions, "1")
 		default:
-			return "", errors.Join(ErrInvalidInOperatorValue, fmt.Errorf("value: %s", value))
+			if b.ResolveView == nil {
+				return "", errors.Join(ErrInvalidInOperatorValue, fmt.Errorf("value: %s", value))
+			}
+			viewQuery, err := b.ResolveView(value)
+			if err != nil {
+				return "", err
+			}
+			subquery := "SELECT n.id FROM notifications n"
+			if len(viewQuery.Joins) > 0 {
+				subquery += " " + strings.Join(viewQuery.Joins, " ")
+			}
+			if len(viewQuery.Where) > 0 {
+				subquery += " WHERE " + strings.Join(viewQuery.Where, " AND ")
+			}
+			b.args = append(b.args, viewQuery.Args...)
+			conditions = append(conditions, "n.id IN ("+subquery+")")
 		}
 	}
 
