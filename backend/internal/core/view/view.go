@@ -73,7 +73,7 @@ func (s *Service) GetView(ctx context.Context, userID, viewID string) (db.View, 
 	return view, nil
 }
 
-// ListViewsWithCounts returns all views (custom + system) with their unread counts
+// ListViewsWithCounts returns all views (custom + system) with unread and total counts.
 func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]models.View, error) {
 	views, err := s.queries.ListViews(ctx, userID)
 	if err != nil {
@@ -183,9 +183,17 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	})
 
 	for i := range response {
+		if !response[i].ShowInSidebar {
+			continue
+		}
 		if response[i].SystemView {
 			response[i].RepositoryIDs = repositoryDefaults[response[i].Slug]
 		}
+		total, err := s.calculateViewTotalCount(ctx, userID, response[i].Query, response[i].RepositoryIDs)
+		if err != nil {
+			return nil, errors.Join(ErrFailedToCalculateViewCounts, err)
+		}
+		response[i].TotalCount = &total
 	}
 
 	return response, nil

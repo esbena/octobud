@@ -174,6 +174,7 @@ export interface NotificationView {
 	systemView?: boolean;
 	query: string; // New: query string instead of filters array
 	unreadCount: number;
+	totalCount?: number;
 	displayOrder?: number;
 	/** Default repository selection applied when the view opens (absent/empty = all). */
 	repositoryIds?: number[];

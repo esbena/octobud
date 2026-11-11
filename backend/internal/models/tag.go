@@ -27,6 +27,7 @@ type Tag struct {
 	Color       *string `json:"color,omitempty"`
 	Description *string `json:"description,omitempty"`
 	UnreadCount *int64  `json:"unreadCount,omitempty"`
+	TotalCount  *int64  `json:"totalCount,omitempty"`
 	// RepositoryIDs is the tag view's default repository selection (empty = all repositories).
 	RepositoryIDs []int64 `json:"repositoryIds,omitempty"`
 }

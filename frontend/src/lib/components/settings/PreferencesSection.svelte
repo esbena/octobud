@@ -22,7 +22,7 @@
 	const { theme } = themeStore;
 
 	const settingsStore = getNotificationSettingsStore();
-	const { timelineAutoScroll, hoverActionsEnabled } = settingsStore;
+	const { timelineAutoScroll, hoverActionsEnabled, showTotalCounts } = settingsStore;
 
 	function handleThemeToggle() {
 		themeStore.toggle();
@@ -60,6 +60,27 @@
 		</div>
 		<label class="relative flex items-center cursor-pointer">
 			<input type="checkbox" checked={isDark} on:change={handleThemeToggle} class="sr-only peer" />
+			<div
+				class="relative w-9 h-5 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"
+			></div>
+		</label>
+	</div>
+
+	<div class="flex items-center justify-between py-3 border-t border-gray-200 dark:border-gray-800">
+		<div class="flex-1">
+			<span class="text-md font-medium text-gray-900 dark:text-gray-100">Show total counts</span>
+			<p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+				Show each view's total notifications alongside its unread count in the sidebar.
+			</p>
+		</div>
+		<label class="relative flex items-center cursor-pointer">
+			<input
+				type="checkbox"
+				aria-label="Show total counts"
+				checked={$showTotalCounts}
+				on:change={(e) => settingsStore.setShowTotalCounts(e.currentTarget.checked)}
+				class="sr-only peer"
+			/>
 			<div
 				class="relative w-9 h-5 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"
 			></div>

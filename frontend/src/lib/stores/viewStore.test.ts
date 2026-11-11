@@ -60,6 +60,40 @@ describe("ViewStore", () => {
 			).toBe(false);
 		});
 
+		it("keeps built-in counts current without replacing their frontend identity", () => {
+			const store = createViewStore(
+				[
+					createMockView({
+						id: "archive",
+						slug: "archive",
+						systemView: true,
+						unreadCount: 4,
+						totalCount: 12,
+					}),
+				],
+				[],
+				BUILT_IN_VIEWS.inbox.id
+			);
+			expect(get(store.builtInViewList).find((v) => v.slug === "archive")).toMatchObject({
+				id: BUILT_IN_VIEWS.archive.id,
+				unreadCount: 4,
+				totalCount: 12,
+			});
+			store.setViews([
+				createMockView({
+					id: "archive",
+					slug: "archive",
+					systemView: true,
+					unreadCount: 0,
+					totalCount: 9,
+				}),
+			]);
+			expect(get(store.builtInViewList).find((v) => v.slug === "archive")).toMatchObject({
+				unreadCount: 0,
+				totalCount: 9,
+			});
+		});
+
 		it("includes all built-in views", () => {
 			const store = createViewStore([], [], BUILT_IN_VIEWS.inbox.id);
 			const builtInViews = get(store.builtInViewList);

@@ -20,6 +20,17 @@
 	import { getBuiltInIconProps, iconPaths } from "./sidebarIcons";
 	import type { NotificationView } from "$lib/api/types";
 	import type { Tag } from "$lib/api/tags";
+	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
+	const { showTotalCounts } = getNotificationSettingsStore();
+
+	function countLabel(
+		name: string,
+		unread: number,
+		total: number | undefined,
+		showTotal: boolean
+	): string {
+		return showTotal && total !== undefined ? `${name}: ${unread} unread, ${total} total` : name;
+	}
 
 	export let builtInViewList: NotificationView[];
 	export let sortedUserViews: NotificationView[];
@@ -59,8 +70,18 @@
 						type="button"
 						class="relative flex h-9 w-9 items-center justify-center rounded-xl transition"
 						on:click={() => onSelectView(builtIn.slug)}
-						title={builtIn.name}
-						aria-label={builtIn.name}
+						title={countLabel(
+							builtIn.name,
+							builtIn.unreadCount,
+							builtIn.totalCount,
+							$showTotalCounts && (builtIn.slug === "inbox" || builtIn.slug === "starred")
+						)}
+						aria-label={countLabel(
+							builtIn.name,
+							builtIn.unreadCount,
+							builtIn.totalCount,
+							$showTotalCounts && (builtIn.slug === "inbox" || builtIn.slug === "starred")
+						)}
 					>
 						<span
 							class="flex items-center justify-center rounded-xl p-2.5 transition text-gray-700 dark:text-gray-100 {!isSettingsRoute &&
@@ -128,8 +149,13 @@
 							type="button"
 							class="relative flex h-9 w-9 items-center justify-center rounded-xl transition"
 							on:click={() => onSelectView(view.slug)}
-							title={view.name}
-							aria-label={view.name}
+							title={countLabel(view.name, view.unreadCount, view.totalCount, $showTotalCounts)}
+							aria-label={countLabel(
+								view.name,
+								view.unreadCount,
+								view.totalCount,
+								$showTotalCounts
+							)}
 						>
 							<span
 								class="flex items-center justify-center rounded-xl py-1.5 px-2.5 text-base transition {!isSettingsRoute &&
@@ -236,8 +262,13 @@
 							type="button"
 							class="relative flex h-9 w-9 items-center justify-center rounded-xl transition"
 							on:click={() => onSelectTag(tag.id)}
-							title={tag.name}
-							aria-label={tag.name}
+							title={countLabel(tag.name, tag.unreadCount ?? 0, tag.totalCount, $showTotalCounts)}
+							aria-label={countLabel(
+								tag.name,
+								tag.unreadCount ?? 0,
+								tag.totalCount,
+								$showTotalCounts
+							)}
 						>
 							<span
 								class="flex items-center justify-center rounded-xl py-1.5 px-2.5 text-base transition {!isSettingsRoute &&

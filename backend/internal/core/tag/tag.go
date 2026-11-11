@@ -43,7 +43,7 @@ var (
 	ErrFailedToListNotifications     = errors.New("failed to list notifications")
 )
 
-// ListTagsWithUnreadCounts returns all tags with their unread counts
+// ListTagsWithUnreadCounts returns all tags with unread and total notification counts.
 func (s *Service) ListTagsWithUnreadCounts(
 	ctx context.Context,
 	userID string,
@@ -70,13 +70,18 @@ func (s *Service) ListTagsWithUnreadCounts(
 		tagResp.RepositoryIDs = repositoryDefaults[models.TagViewKey(tag.ID)]
 
 		// Calculate unread count for this tag
-		unreadCount, err := s.calculateTagUnreadCount(ctx, userID, tag.Slug)
+		unreadCount, err := s.calculateTagCount(ctx, userID, tag.Slug, true, nil)
 		// If there's an error or unread count is 0, don't include it.
 		if err == nil && unreadCount > 0 {
 			// Only include unreadCount if > 0
 			tagResp.UnreadCount = &unreadCount
 		}
 
+		total, err := s.calculateTagCount(ctx, userID, tag.Slug, false, tagResp.RepositoryIDs)
+		if err != nil {
+			return nil, errors.Join(ErrFailedToListTags, err)
+		}
+		tagResp.TotalCount = &total
 		response = append(response, tagResp)
 	}
 
@@ -221,20 +226,24 @@ func (s *Service) ListTags(ctx context.Context, userID string) ([]db.Tag, error)
 	return tags, nil
 }
 
-// calculateTagUnreadCount calculates the count of unread notifications for a tag
-func (s *Service) calculateTagUnreadCount(
+// calculateTagCount uses the tag view's query, optionally restricted to unread items.
+func (s *Service) calculateTagCount(
 	ctx context.Context,
 	userID, tagSlug string,
+	unreadOnly bool,
+	repositoryIDs []int64,
 ) (int64, error) {
-	// Build explicit query: tags:{slug} in:anywhere -is:muted is:unread
-	// This shows all unread notifications with the tag, including archived/snoozed/filtered, but excluding muted
-	queryStr := fmt.Sprintf("tags:%s in:anywhere -is:muted is:unread", tagSlug)
+	queryStr := fmt.Sprintf("tags:%s in:anywhere -is:muted", tagSlug)
+	if unreadOnly {
+		queryStr += " is:unread"
+	}
 
 	// Use unified BuildQuery which applies business rules based on query content
-	dbQuery, err := query.BuildQuery(queryStr, 1, 0)
+	dbQuery, err := query.BuildQueryWithOptions(queryStr, 0, 0, false)
 	if err != nil {
 		return 0, errors.Join(ErrFailedToBuildQuery, err)
 	}
+	dbQuery = query.ApplyRepositoryFilter(dbQuery, repositoryIDs)
 
 	result, err := s.queries.ListNotificationsFromQuery(ctx, userID, dbQuery)
 	if err != nil {

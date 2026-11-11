@@ -19,7 +19,7 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/db"
 )
 
-// View represents a view with unread count
+// View represents a view with notification counts.
 type View struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
@@ -31,6 +31,7 @@ type View struct {
 	SystemView    bool    `json:"systemView,omitempty"`
 	Query         string  `json:"query"`
 	UnreadCount   int64   `json:"unreadCount"`
+	TotalCount    *int64  `json:"totalCount,omitempty"`
 	DisplayOrder  int     `json:"displayOrder"`
 	// RepositoryIDs is the view's default repository selection (empty = all repositories).
 	RepositoryIDs []int64 `json:"repositoryIds,omitempty"`
