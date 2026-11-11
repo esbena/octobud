@@ -918,39 +918,22 @@ func (s *Store) CreateView(
 	return toDBView(v), nil
 }
 
-// UpdateView updates a view
+// UpdateView updates a view.
 func (s *Store) UpdateView(
 	ctx context.Context,
 	userID string,
 	arg db.UpdateViewParams,
 ) (db.View, error) {
-	// SQLite UpdateView expects non-nullable strings for name and slug
-	name := ""
-	if arg.Name.Valid {
-		name = arg.Name.String
-	}
-	slug := ""
-	if arg.Slug.Valid {
-		slug = arg.Slug.String
-	}
-
-	var isDefault int64
-	if arg.IsDefault.Valid {
-		if arg.IsDefault.Bool {
-			isDefault = 1
-		}
-	}
-
 	v, err := db.RetryOnBusy(ctx, func() (View, error) {
 		return s.q.UpdateView(ctx, UpdateViewParams{
 			UserID:      userID,
 			ID:          arg.ID,
-			Name:        name,
-			Slug:        slug,
+			Name:        arg.Name,
+			Slug:        arg.Slug,
 			Description: arg.Description,
 			Icon:        arg.Icon,
 			Query:       arg.Query,
-			IsDefault:   isDefault,
+			IsDefault:   fromNullBool(arg.IsDefault),
 		})
 	})
 	if err != nil {

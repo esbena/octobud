@@ -138,23 +138,23 @@ func (q *Queries) ListViews(ctx context.Context, userID string) ([]View, error) 
 
 const updateView = `-- name: UpdateView :one
 UPDATE views SET
-    name = COALESCE(?, name),
-    slug = COALESCE(?, slug),
-    description = COALESCE(?, description),
-    icon = COALESCE(?, icon),
-    query = COALESCE(?, query),
-    is_default = COALESCE(?, is_default)
-WHERE user_id = ? AND id = ?
+    name = COALESCE(?1, name),
+    slug = COALESCE(?2, slug),
+    description = COALESCE(?3, description),
+    icon = COALESCE(?4, icon),
+    query = COALESCE(?5, query),
+    is_default = COALESCE(?6, is_default)
+WHERE user_id = ?7 AND id = ?8
 RETURNING id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order
 `
 
 type UpdateViewParams struct {
-	Name        string
-	Slug        string
+	Name        sql.NullString
+	Slug        sql.NullString
 	Description sql.NullString
 	Icon        sql.NullString
 	Query       sql.NullString
-	IsDefault   int64
+	IsDefault   sql.NullInt64
 	UserID      string
 	ID          string
 }

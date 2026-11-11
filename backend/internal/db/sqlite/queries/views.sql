@@ -11,13 +11,13 @@ RETURNING *;
 
 -- name: UpdateView :one
 UPDATE views SET
-    name = COALESCE(?, name),
-    slug = COALESCE(?, slug),
-    description = COALESCE(?, description),
-    icon = COALESCE(?, icon),
-    query = COALESCE(?, query),
-    is_default = COALESCE(?, is_default)
-WHERE user_id = ? AND id = ?
+    name = COALESCE(sqlc.narg(name), name),
+    slug = COALESCE(sqlc.narg(slug), slug),
+    description = COALESCE(sqlc.arg(description), description),
+    icon = COALESCE(sqlc.arg(icon), icon),
+    query = COALESCE(sqlc.arg(query), query),
+    is_default = COALESCE(sqlc.narg(is_default), is_default)
+WHERE user_id = sqlc.arg(user_id) AND id = sqlc.arg(id)
 RETURNING *;
 
 -- name: DeleteView :execrows
