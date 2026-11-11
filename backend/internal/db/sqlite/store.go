@@ -344,6 +344,7 @@ func toDBUser(u User) db.User {
 		SyncSettings:         toNullRawMessage(u.SyncSettings),
 		RetentionSettings:    toNullRawMessage(u.RetentionSettings),
 		UpdateSettings:       toNullRawMessage(u.UpdateSettings),
+		CopilotSettings:      toNullRawMessage(u.CopilotSettings),
 		MutedUntil:           parseNullTime(u.MutedUntil),
 	}
 }

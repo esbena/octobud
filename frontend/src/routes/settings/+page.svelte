@@ -26,6 +26,7 @@
 	import SyncOlderNotificationsSection from "$lib/components/settings/SyncOlderNotificationsSection.svelte";
 	import StorageSettingsSection from "$lib/components/settings/StorageSettingsSection.svelte";
 	import UpdateSettingsSection from "$lib/components/settings/UpdateSettingsSection.svelte";
+	import CopilotSettingsSection from "$lib/components/settings/CopilotSettingsSection.svelte";
 	import DebuggingSection from "$lib/components/settings/DebuggingSection.svelte";
 	import { registerListShortcuts } from "$lib/keyboard/listShortcuts";
 	import { registerCommand } from "$lib/keyboard/commandRegistry";
@@ -37,6 +38,7 @@
 		"account",
 		"appearance",
 		"notifications",
+		"copilot",
 		"rules",
 		"data",
 		"updates",
@@ -222,6 +224,10 @@
 			title: "Account",
 			description: "Manage your GitHub connection",
 		},
+		copilot: {
+			title: "Copilot",
+			description: "Choose Copilot features and their defaults",
+		},
 		appearance: {
 			title: "Preferences",
 			description: "Customize appearance and behavior",
@@ -280,6 +286,8 @@
 		</div>
 	{:else if activeSection === "updates"}
 		<UpdateSettingsSection />
+	{:else if activeSection === "copilot"}
+		<CopilotSettingsSection />
 	{:else if activeSection === "debugging"}
 		<DebuggingSection />
 	{/if}

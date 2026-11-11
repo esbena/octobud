@@ -26,6 +26,13 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/db"
 )
 
+func (s *Store) UpdateUserCopilotSettings(ctx context.Context, settings db.NullRawMessage) (db.User, error) {
+	u, err := db.RetryOnBusy(ctx, func() (User, error) {
+		return s.q.UpdateUserCopilotSettings(ctx, fromNullRawMessage(settings))
+	})
+	return toDBUser(u), err
+}
+
 // --- Notification methods ---
 
 // GetNotificationByGithubID gets a notification by GitHub ID

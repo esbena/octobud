@@ -16,7 +16,7 @@ UPDATE users SET
     github_user_id = NULL,
     github_username = NULL,
     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') 
-WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 func (q *Queries) ClearUserGitHubToken(ctx context.Context) (User, error) {
@@ -33,6 +33,7 @@ func (q *Queries) ClearUserGitHubToken(ctx context.Context) (User, error) {
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
@@ -40,7 +41,7 @@ func (q *Queries) ClearUserGitHubToken(ctx context.Context) (User, error) {
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, created_at, updated_at)
 VALUES (1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 // Creates the single user record (id is always 1)
@@ -58,12 +59,13 @@ func (q *Queries) CreateUser(ctx context.Context) (User, error) {
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings FROM users WHERE id = 1
+SELECT id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings FROM users WHERE id = 1
 `
 
 func (q *Queries) GetUser(ctx context.Context) (User, error) {
@@ -80,6 +82,30 @@ func (q *Queries) GetUser(ctx context.Context) (User, error) {
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
+	)
+	return i, err
+}
+
+const updateUserCopilotSettings = `-- name: UpdateUserCopilotSettings :one
+UPDATE users SET copilot_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
+`
+
+func (q *Queries) UpdateUserCopilotSettings(ctx context.Context, copilotSettings sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCopilotSettings, copilotSettings)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubUserID,
+		&i.GithubUsername,
+		&i.GithubTokenEncrypted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SyncSettings,
+		&i.RetentionSettings,
+		&i.MutedUntil,
+		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
@@ -89,7 +115,7 @@ UPDATE users SET
     github_user_id = ?, 
     github_username = ?,
     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') 
-WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 type UpdateUserGitHubIdentityParams struct {
@@ -112,12 +138,13 @@ func (q *Queries) UpdateUserGitHubIdentity(ctx context.Context, arg UpdateUserGi
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
 
 const updateUserGitHubToken = `-- name: UpdateUserGitHubToken :one
-UPDATE users SET github_token_encrypted = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+UPDATE users SET github_token_encrypted = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 func (q *Queries) UpdateUserGitHubToken(ctx context.Context, githubTokenEncrypted sql.NullString) (User, error) {
@@ -134,12 +161,13 @@ func (q *Queries) UpdateUserGitHubToken(ctx context.Context, githubTokenEncrypte
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
 
 const updateUserMutedUntil = `-- name: UpdateUserMutedUntil :one
-UPDATE users SET muted_until = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+UPDATE users SET muted_until = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 func (q *Queries) UpdateUserMutedUntil(ctx context.Context, mutedUntil sql.NullString) (User, error) {
@@ -156,12 +184,13 @@ func (q *Queries) UpdateUserMutedUntil(ctx context.Context, mutedUntil sql.NullS
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
 
 const updateUserRetentionSettings = `-- name: UpdateUserRetentionSettings :one
-UPDATE users SET retention_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+UPDATE users SET retention_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 func (q *Queries) UpdateUserRetentionSettings(ctx context.Context, retentionSettings sql.NullString) (User, error) {
@@ -178,12 +207,13 @@ func (q *Queries) UpdateUserRetentionSettings(ctx context.Context, retentionSett
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
 
 const updateUserSyncSettings = `-- name: UpdateUserSyncSettings :one
-UPDATE users SET sync_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+UPDATE users SET sync_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 func (q *Queries) UpdateUserSyncSettings(ctx context.Context, syncSettings sql.NullString) (User, error) {
@@ -200,12 +230,13 @@ func (q *Queries) UpdateUserSyncSettings(ctx context.Context, syncSettings sql.N
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }
 
 const updateUserUpdateSettings = `-- name: UpdateUserUpdateSettings :one
-UPDATE users SET update_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings
+UPDATE users SET update_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING id, github_user_id, github_username, github_token_encrypted, created_at, updated_at, sync_settings, retention_settings, muted_until, update_settings, copilot_settings
 `
 
 func (q *Queries) UpdateUserUpdateSettings(ctx context.Context, updateSettings sql.NullString) (User, error) {
@@ -222,6 +253,7 @@ func (q *Queries) UpdateUserUpdateSettings(ctx context.Context, updateSettings s
 		&i.RetentionSettings,
 		&i.MutedUntil,
 		&i.UpdateSettings,
+		&i.CopilotSettings,
 	)
 	return i, err
 }

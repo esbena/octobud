@@ -214,6 +214,7 @@ type User struct {
 	SyncSettings         NullRawMessage
 	RetentionSettings    NullRawMessage
 	UpdateSettings       NullRawMessage
+	CopilotSettings      NullRawMessage
 	MutedUntil           sql.NullTime
 }
 

@@ -1261,6 +1261,21 @@ func (mr *MockStoreMockRecorder) UpdateTimelineLastSeenAt(ctx, userID, githubID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTimelineLastSeenAt", reflect.TypeOf((*MockStore)(nil).UpdateTimelineLastSeenAt), ctx, userID, githubID, timestamp)
 }
 
+// UpdateUserCopilotSettings mocks base method.
+func (m *MockStore) UpdateUserCopilotSettings(ctx context.Context, settings db.NullRawMessage) (db.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserCopilotSettings", ctx, settings)
+	ret0, _ := ret[0].(db.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserCopilotSettings indicates an expected call of UpdateUserCopilotSettings.
+func (mr *MockStoreMockRecorder) UpdateUserCopilotSettings(ctx, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCopilotSettings", reflect.TypeOf((*MockStore)(nil).UpdateUserCopilotSettings), ctx, settings)
+}
+
 // UpdateUserGitHubIdentity mocks base method.
 func (m *MockStore) UpdateUserGitHubIdentity(ctx context.Context, arg db.UpdateUserGitHubIdentityParams) (db.User, error) {
 	m.ctrl.T.Helper()

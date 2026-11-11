@@ -16,6 +16,7 @@
 
 	import { getContext } from "svelte";
 	import type { Notification } from "$lib/api/types";
+	import ActivityBriefButton from "$lib/components/shared/ActivityBriefButton.svelte";
 	import { getArchiveIcon } from "$lib/utils/archiveIcons";
 	import { getMuteIcon } from "$lib/utils/muteIcons";
 	import { mailOpenIcon, mailClosedIcon } from "$lib/utils/notificationHelpers";
@@ -177,6 +178,7 @@
 
 		<!-- Action buttons -->
 		<div class="flex items-center gap-1">
+			<ActivityBriefButton {notification} />
 			{#if subjectLink}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a

@@ -271,6 +271,7 @@ type Store interface {
 	ClearUserGitHubToken(ctx context.Context) (User, error)
 	UpdateUserRetentionSettings(ctx context.Context, retentionSettings sql.NullString) (User, error)
 	UpdateUserUpdateSettings(ctx context.Context, updateSettings NullRawMessage) (User, error)
+	UpdateUserCopilotSettings(ctx context.Context, settings NullRawMessage) (User, error)
 	UpdateUserMutedUntil(ctx context.Context, mutedUntil sql.NullTime) (User, error)
 
 	// Storage management methods

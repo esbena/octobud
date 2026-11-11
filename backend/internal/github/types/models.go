@@ -204,6 +204,7 @@ type PullRequestComment struct {
 	Position            *int       `json:"position"` // nil when outdated
 	User                SimpleUser `json:"user"`
 	CreatedAt           *time.Time `json:"created_at"`
+	UpdatedAt           *time.Time `json:"updated_at"`
 	HTMLURL             string     `json:"html_url"`
 }
 

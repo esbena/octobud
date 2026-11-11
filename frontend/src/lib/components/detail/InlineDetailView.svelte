@@ -29,6 +29,18 @@
 	import type { TimelineController } from "$lib/state/timelineController";
 	import TimelineThread from "$lib/components/timeline/TimelineThread.svelte";
 	import DetailActionBar from "./DetailActionBar.svelte";
+	import ActivityBrief from "$lib/components/shared/ActivityBrief.svelte";
+	import {
+		activityBriefDays,
+		activityBriefEntries,
+		matchingActivityBrief,
+	} from "$lib/stores/activityBriefs";
+	$: activityBrief = matchingActivityBrief(
+		$activityBriefEntries,
+		notification?.githubId,
+		notification?.effectiveSortDate,
+		$activityBriefDays
+	);
 	import { getNotificationTypeConfig } from "$lib/utils/notificationTypeConfig";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import type { NotificationPageController } from "$lib/state/types";
@@ -639,6 +651,12 @@
 							{/if}
 						</div>
 					</div>
+
+					{#if activityBrief}
+						<div class="pb-3">
+							<ActivityBrief brief={activityBrief} />
+						</div>
+					{/if}
 
 					<!-- Fourth Row: Assignees & Reviewers (single-line with hover popovers) -->
 					{#if (notification.githubAssignees && notification.githubAssignees.length > 0) || (notification.githubReviewers && notification.githubReviewers.length > 0) || (notification.githubTeamReviewers && notification.githubTeamReviewers.length > 0)}

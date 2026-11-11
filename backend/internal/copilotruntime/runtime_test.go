@@ -80,7 +80,10 @@ func readCapture(t *testing.T, path string) runtimeCapture {
 }
 
 func TestRuntimeRunsApplicationTool(t *testing.T) {
-	t.Setenv("GITHUB_TOKEN", "must-not-inherit")
+	t.Setenv("COPILOT_GITHUB_TOKEN", "synthetic-copilot-token")
+	t.Setenv("GH_TOKEN", "synthetic-gh-token")
+	t.Setenv("GITHUB_TOKEN", "synthetic-github-token")
+	t.Setenv("UNRELATED_SECRET", "must-not-inherit")
 	path, captured := fakeCLI(t, "success")
 	for _, model := range []string{"", "explicit-model"} {
 		var called atomic.Bool
@@ -94,7 +97,10 @@ func TestRuntimeRunsApplicationTool(t *testing.T) {
 			key, value, _ := strings.Cut(entry, "=")
 			env[key] = value
 		}
-		require.NotContains(t, env, "GITHUB_TOKEN")
+		require.Equal(t, "synthetic-copilot-token", env["COPILOT_GITHUB_TOKEN"])
+		require.Equal(t, "synthetic-gh-token", env["GH_TOKEN"])
+		require.Equal(t, "synthetic-github-token", env["GITHUB_TOKEN"])
+		require.NotContains(t, env, "UNRELATED_SECRET")
 		root := filepath.Dir(capture.Dir)
 		require.Equal(t, filepath.Join(root, "work"), capture.Dir)
 		_, err := os.Stat(root)
