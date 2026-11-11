@@ -37,3 +37,6 @@ UPDATE users SET muted_until = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'n
 
 -- name: UpdateUserUpdateSettings :one
 UPDATE users SET update_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING *;
+
+-- name: UpdateUserCopilotSettings :one
+UPDATE users SET copilot_settings = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = 1 RETURNING *;

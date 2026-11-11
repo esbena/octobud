@@ -191,6 +191,7 @@ type User struct {
 	RetentionSettings    sql.NullString
 	MutedUntil           sql.NullString
 	UpdateSettings       sql.NullString
+	CopilotSettings      sql.NullString
 }
 
 type View struct {
