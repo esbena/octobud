@@ -17,6 +17,7 @@
 	import { setContext } from "svelte";
 	import { writable } from "svelte/store";
 	import NotificationViewHeader from "./NotificationViewHeader.svelte";
+	import ActivityBriefControls from "$lib/components/shared/ActivityBriefControls.svelte";
 	import NotificationSingleMode from "./NotificationSingleMode.svelte";
 	import NotificationSplitMode from "./NotificationSplitMode.svelte";
 	import ApiErrorState from "$lib/components/shared/ApiErrorState.svelte";
@@ -211,27 +212,32 @@
 {:else}
 	<section class="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
 		<!-- NotificationViewHeader - always at top, but hidden when detail is open in list mode -->
-		{#if splitModeEnabled || !detailOpen}
-			<NotificationViewHeader
-				bind:this={headerComponent}
-				{combinedQuery}
-				{canUpdateView}
-				{onChangeQuery}
-				{onSubmitQuery}
-				{onClear}
-				{onUpdateView}
-				{onSaveAsNewView}
-				{page}
-				{totalPages}
-				{onPrevious}
-				{onNext}
-				{multiselectMode}
-				{onToggleMultiselect}
-				{splitModeEnabled}
-				{onToggleSplitMode}
-				{tags}
-			/>
-		{/if}
+		<div class:hidden={!splitModeEnabled && detailOpen}>
+			{#if splitModeEnabled || !detailOpen}
+				<NotificationViewHeader
+					bind:this={headerComponent}
+					{combinedQuery}
+					{canUpdateView}
+					{onChangeQuery}
+					{onSubmitQuery}
+					{onClear}
+					{onUpdateView}
+					{onSaveAsNewView}
+					{page}
+					{totalPages}
+					{onPrevious}
+					{onNext}
+					{multiselectMode}
+					{onToggleMultiselect}
+					{splitModeEnabled}
+					{onToggleSplitMode}
+					{tags}
+				/>
+			{/if}
+			<div class="pl-4 pr-2">
+				<ActivityBriefControls />
+			</div>
+		</div>
 
 		<!-- Content area: reading pane OR list OR detail -->
 		{#if splitModeEnabled}

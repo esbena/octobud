@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -84,9 +85,10 @@ func (h *Handler) handleActivityBriefBatch(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var input struct {
-		Query         string  `json:"query"`
-		RepositoryIDs []int64 `json:"repositoryIds"`
-		Days          int     `json:"days"`
+		NotificationID string  `json:"notificationId"`
+		Query          string  `json:"query"`
+		RepositoryIDs  []int64 `json:"repositoryIds"`
+		Days           int     `json:"days"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))
 	decoder.DisallowUnknownFields()
@@ -101,6 +103,10 @@ func (h *Handler) handleActivityBriefBatch(w http.ResponseWriter, r *http.Reques
 			http.StatusBadRequest,
 			"days must be 1, 3, 7, 14 or 30; no trailing data allowed",
 		)
+		return
+	}
+	if input.NotificationID != "" && (input.Query != "" || len(input.RepositoryIDs) > 0) {
+		helpers.WriteError(w, http.StatusBadRequest, "notificationId cannot be combined with view filters")
 		return
 	}
 	user, err := h.authSvc.GetUser(r.Context())
@@ -120,6 +126,37 @@ func (h *Handler) handleActivityBriefBatch(w http.ResponseWriter, r *http.Reques
 		func(settings copilotsettings.Settings, _ context.Context) error {
 			if !settings.HighlightsEnabled() || h.briefFactory == nil || h.briefQueue == nil {
 				return activitybrief.ErrUnavailable
+			}
+			if input.NotificationID != "" {
+				notification, err := h.notifications.GetByGithubID(r.Context(), userID, input.NotificationID)
+				if errors.Is(err, sql.ErrNoRows) {
+					helpers.WriteError(w, http.StatusNotFound, "notification not found")
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				kind := strings.ToLower(notification.SubjectType)
+				if kind != "pullrequest" && kind != "pr" && kind != "issue" && kind != "discussion" {
+					return activitybrief.ErrUnsupported
+				}
+				h.briefBatchMu.Lock()
+				defer h.briefBatchMu.Unlock()
+				selected := models.Notification{GithubID: notification.GithubID}
+				added, err := h.briefQueue.Enqueue(activitybrief.Key{
+					UserID: userID, NotificationID: notification.GithubID,
+					Version: notification.EffectiveSortDate.UTC().Format(time.RFC3339Nano), Days: input.Days,
+				}, h.runActivityBrief(userID, user.GithubUsername, selected, h.configuredBriefModel(settings)))
+				if err != nil {
+					helpers.WriteError(w, http.StatusTooManyRequests, err.Error())
+					return nil
+				}
+				response := h.briefStatus(userID, settings)
+				if added {
+					response.Queued = 1
+				}
+				helpers.WriteJSON(w, http.StatusAccepted, response)
+				return nil
 			}
 			h.enqueueActivityBriefBatch(
 				w,

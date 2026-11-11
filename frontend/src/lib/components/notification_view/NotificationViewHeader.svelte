@@ -15,7 +15,6 @@
 	// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 	import NotificationToolbar from "./NotificationToolbar.svelte";
-	import ActivityBriefControls from "$lib/components/shared/ActivityBriefControls.svelte";
 	import type { Tag } from "$lib/api/types";
 	import type { NotificationToolbarComponent } from "$lib/types/components";
 
@@ -84,5 +83,4 @@
 		{onToggleSplitMode}
 		{tags}
 	/>
-	<ActivityBriefControls />
 </div>

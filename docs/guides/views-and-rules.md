@@ -238,6 +238,10 @@ current view, across pages, using its submitted query and repository filters.
 Cached and pending items are skipped; repeated clicks extend the queue without
 duplicates. Browsing, scrolling, changing the lookback or polling never starts
 generation. Per-view automatic generation is not enabled.
+Use **Summarize activity** (the Copilot icon) in a notification's hover actions
+or detail action bar to summarize just that issue, PR or discussion. It uses
+the selected lookback and the same queue and cache as batches; current results
+are reused, pending actions are disabled, and failures can be retried explicitly.
 
 **Max lookback** offers 1, 3, 7, 14 or 30 days, initially using the configured
 default (3 days unless changed). This is a maximum
@@ -289,6 +293,8 @@ API:
   save the master switch and feature preferences without inference.
 - `POST /api/notifications/activity-briefs` accepts `query`, `repositoryIds`,
   and `days`; the server selects at most ten missing supported notifications.
+  Alternatively, supply `notificationId` and `days` without view filters to
+  queue only that notification.
 - `GET /api/notifications/activity-briefs` reads authenticated cache/queue status
   without GitHub or model calls.
 - `POST /api/notifications/activity-briefs/stop` stops that user's pending work.

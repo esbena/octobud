@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,10 +13,90 @@ import (
 	"time"
 
 	"github.com/octobud-hq/octobud/backend/internal/core/activitybrief"
+	"github.com/octobud-hq/octobud/backend/internal/db"
 	"github.com/octobud-hq/octobud/backend/internal/models"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+func TestIndividualActivityBriefUsesSharedQueueAndCache(t *testing.T) {
+	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
+	handler.WithActivityBriefs(briefModel(nil))
+	configureBriefTestSettings(t, handler, true)
+	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
+	at := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+	notifications.EXPECT().GetByGithubID(gomock.Any(), "owner", "selected").Return(db.Notification{
+		GithubID: "selected", SubjectType: "Issue", EffectiveSortDate: at,
+	}, nil).Times(2)
+	_, err := handler.briefQueue.Enqueue(activitybrief.Key{
+		UserID: "owner", NotificationID: "selected", Version: at.Format(time.RFC3339Nano), Days: 7,
+	}, func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
+		<-ctx.Done()
+		return activitybrief.Result{}, ctx.Err()
+	})
+	require.NoError(t, err)
+	for range 2 {
+		response := httptest.NewRecorder()
+		handler.handleActivityBriefBatch(response, briefRequest(`{"notificationId":"selected","days":7}`))
+		require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
+		var status briefStatusResponse
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
+		require.Zero(t, status.Queued)
+		require.Len(t, status.Entries, 1)
+	}
+}
+
+func TestIndividualActivityBriefQueuesOnlySelectedNotification(t *testing.T) {
+	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
+	handler.WithActivityBriefs(briefModel(nil))
+	configureBriefTestSettings(t, handler, true)
+	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
+	started := make(chan struct{}, 10)
+	for i := range 10 {
+		_, err := handler.briefQueue.Enqueue(activitybrief.Key{UserID: "blocker", NotificationID: fmt.Sprint(i)},
+			func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
+				started <- struct{}{}
+				<-ctx.Done()
+				return activitybrief.Result{}, ctx.Err()
+			})
+		require.NoError(t, err)
+	}
+	require.Eventually(t, func() bool { return len(started) == 10 }, time.Second, time.Millisecond)
+	at := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+	notifications.EXPECT().GetByGithubID(gomock.Any(), "owner", "selected").Return(db.Notification{
+		GithubID: "selected", SubjectType: "Issue", EffectiveSortDate: at,
+	}, nil)
+	response := httptest.NewRecorder()
+	handler.handleActivityBriefBatch(response, briefRequest(`{"notificationId":"selected","days":7}`))
+	require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
+	var status briefStatusResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
+	require.Equal(t, 1, status.Queued)
+	require.Len(t, status.Entries, 1)
+	require.Equal(t, "selected", status.Entries[0].NotificationID)
+	require.Equal(t, 7, status.Entries[0].Days)
+	require.Equal(t, at.Format(time.RFC3339Nano), status.Entries[0].Version)
+}
+
+func TestIndividualActivityBriefRejectsMissingNotificationAndMixedScope(t *testing.T) {
+	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
+	handler.WithActivityBriefs(briefModel(nil))
+	configureBriefTestSettings(t, handler, true)
+	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
+	notifications.EXPECT().GetByGithubID(gomock.Any(), "owner", "missing").Return(db.Notification{}, sql.ErrNoRows)
+	for _, test := range []struct {
+		body   string
+		status int
+	}{
+		{`{"notificationId":"missing","days":3}`, http.StatusNotFound},
+		{`{"notificationId":"selected","query":"in:inbox","days":3}`, http.StatusBadRequest},
+	} {
+		response := httptest.NewRecorder()
+		handler.handleActivityBriefBatch(response, briefRequest(test.body))
+		require.Equal(t, test.status, response.Code, response.Body.String())
+	}
+	require.Empty(t, handler.briefQueue.Entries("owner"))
+}
 
 func TestBatchFillsGapsAcrossPagesAndRepeatedClicksExtendQueue(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))

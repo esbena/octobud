@@ -28,7 +28,9 @@ export interface ActivityBriefStatus {
 
 export async function activityBriefRequest(
 	action: "status" | "batch" | "stop",
-	input?: { query: string; repositoryIds: number[]; days: number },
+	input?:
+		| { query: string; repositoryIds: number[]; days: number }
+		| { notificationId: string; days: number },
 	fetchImpl?: typeof fetch
 ): Promise<ActivityBriefStatus> {
 	const response = await fetchWithAuth(

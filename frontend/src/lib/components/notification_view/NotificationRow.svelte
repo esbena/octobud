@@ -30,6 +30,7 @@
 	import SnoozeDropdown from "$lib/components/shared/SnoozeDropdown.svelte";
 	import TagDropdown from "$lib/components/shared/TagDropdown.svelte";
 	import ActivityBrief from "$lib/components/shared/ActivityBrief.svelte";
+	import ActivityBriefButton from "$lib/components/shared/ActivityBriefButton.svelte";
 	import {
 		activityBriefDays,
 		activityBriefEntries,
@@ -611,6 +612,7 @@
 					: 'invisible opacity-0 pointer-events-none'}"
 		>
 			<div class="{buttonGroupBg} rounded-full p-0.5 flex items-center gap-0.5 shadow-lg">
+				<ActivityBriefButton {notification} />
 				{#if subjectLink}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 					<a

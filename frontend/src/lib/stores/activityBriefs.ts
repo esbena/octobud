@@ -2,6 +2,7 @@ import { writable } from "svelte/store";
 import type { ActivityBriefEntry } from "$lib/api/activityBriefs";
 
 export const activityBriefDays = writable(3);
+export const activityBriefEnabled = writable(false);
 export const activityBriefEntries = writable<ActivityBriefEntry[]>([]);
 
 export function matchingActivityBrief(

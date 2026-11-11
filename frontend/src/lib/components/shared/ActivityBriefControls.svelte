@@ -2,7 +2,11 @@
 	import octicons from "@primer/octicons";
 	import { getContext, onMount } from "svelte";
 	import { activityBriefRequest } from "$lib/api/activityBriefs";
-	import { activityBriefDays, activityBriefEntries } from "$lib/stores/activityBriefs";
+	import {
+		activityBriefDays,
+		activityBriefEntries,
+		activityBriefEnabled,
+	} from "$lib/stores/activityBriefs";
 	import type { NotificationPageController } from "$lib/state/types";
 
 	const controller = getContext<NotificationPageController>("notificationPageController");
@@ -36,6 +40,7 @@
 			if (!alive || sequence < appliedSequence) return;
 			appliedSequence = sequence;
 			enabled = response.enabled;
+			activityBriefEnabled.set(response.enabled);
 			loaded = true;
 			if (!defaultsLoaded) {
 				activityBriefDays.set(response.defaultDays);
