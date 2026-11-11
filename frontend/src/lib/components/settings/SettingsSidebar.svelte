@@ -16,6 +16,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
 <script lang="ts">
+	import octicons from "@primer/octicons";
+
 	export let activeSection: string = "account";
 
 	type SettingsSection = {
@@ -28,6 +30,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 		{ id: "account", label: "Account", icon: "github" },
 		{ id: "appearance", label: "Preferences", icon: "palette" },
 		{ id: "notifications", label: "Notifications", icon: "bell" },
+		{ id: "copilot", label: "Copilot", icon: "copilot" },
 		{ id: "rules", label: "Rules", icon: "bolt" },
 		{ id: "data", label: "Data", icon: "database" },
 		{ id: "updates", label: "Updates", icon: "arrow-down" },
@@ -86,6 +89,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 							<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
 							<path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
 						</svg>
+					{:else if section.icon === "copilot"}
+						<svg
+							aria-hidden="true"
+							class="w-4 h-4 flex-shrink-0"
+							fill="currentColor"
+							viewBox="0 0 16 16">{@html octicons.copilot.heights["16"].path}</svg
+						>
 					{:else if section.icon === "bolt"}
 						<svg
 							class="w-4 h-4 flex-shrink-0"
