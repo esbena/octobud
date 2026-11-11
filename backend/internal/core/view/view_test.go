@@ -27,6 +27,7 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/db"
 	"github.com/octobud-hq/octobud/backend/internal/db/mocks"
 	"github.com/octobud-hq/octobud/backend/internal/models"
+	"github.com/octobud-hq/octobud/backend/internal/query"
 )
 
 func TestService_GetView(t *testing.T) {
@@ -889,7 +890,7 @@ func TestService_ListViewsWithCounts_SkipsHiddenViewCounts(t *testing.T) {
 	store.EXPECT().ListViewRepositoryDefaults(gomock.Any(), "owner").Return(nil, nil)
 	// Five built-in badges and one visible custom view; no independent helper count.
 	store.EXPECT().ListNotificationsFromQuery(gomock.Any(), "owner", gomock.Any()).
-		Return(db.ListNotificationsFromQueryResult{Total: 3}, nil).Times(6)
+		Return(db.ListNotificationsFromQueryResult{Total: 3}, nil).Times(12)
 
 	views, err := NewService(store).ListViewsWithCounts(t.Context(), "owner")
 	require.NoError(t, err)
@@ -899,4 +900,124 @@ func TestService_ListViewsWithCounts_SkipsHiddenViewCounts(t *testing.T) {
 	require.Zero(t, views[0].UnreadCount)
 	require.True(t, views[1].ShowInSidebar)
 	require.Equal(t, int64(3), views[1].UnreadCount)
+}
+
+func TestService_ListViewsWithCounts_TotalsUseListQueries(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListViews(gomock.Any(), userID).Return([]db.View{
+		{ID: "read", Slug: "read", ShowInSidebar: true, Query: sql.NullString{String: "is:read", Valid: true}},
+		{ID: "mixed", Slug: "mixed", ShowInSidebar: true, Query: sql.NullString{String: "in:archive OR is:starred", Valid: true}},
+	}, nil)
+	m.EXPECT().ListViewRepositoryDefaults(gomock.Any(), userID).Return(nil, nil)
+
+	// Existing unread queries still run separately, without widening the view's query.
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, gomock.Any()).
+		Return(db.ListNotificationsFromQueryResult{}, nil).Times(7)
+	expected := map[string]string{
+		"read":       "is:read",
+		"mixed":      "in:archive OR is:starred",
+		"inbox":      "in:inbox",
+		"everything": "in:anywhere",
+		"archive":    "in:archive",
+		"snoozed":    "in:snoozed",
+		"starred":    "is:starred",
+	}
+	for _, queryStr := range expected {
+		dbQuery, err := query.BuildQueryWithOptions(queryStr, 0, 0, false)
+		require.NoError(t, err)
+		m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, dbQuery).
+			Return(db.ListNotificationsFromQueryResult{Total: 12}, nil)
+	}
+
+	views, err := NewService(m).ListViewsWithCounts(context.Background(), userID)
+	require.NoError(t, err)
+	require.Len(t, views, len(expected))
+	for _, v := range views {
+		require.Equal(t, expected[v.Slug], v.Query)
+		require.Zero(t, v.UnreadCount)
+		require.NotNil(t, v.TotalCount)
+		require.Equal(t, int64(12), *v.TotalCount)
+	}
+}
+
+func TestService_ListViewsWithCounts_TotalFailureIsReturned(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListViews(gomock.Any(), userID).Return(nil, nil)
+	m.EXPECT().ListViewRepositoryDefaults(gomock.Any(), userID).Return(nil, nil)
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, gomock.Any()).
+		Return(db.ListNotificationsFromQueryResult{}, nil).Times(5)
+	totalQuery, err := query.BuildQueryWithOptions("in:inbox", 0, 0, false)
+	require.NoError(t, err)
+	dbErr := errors.New("count unavailable")
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, totalQuery).
+		Return(db.ListNotificationsFromQueryResult{}, dbErr)
+
+	views, err := NewService(m).ListViewsWithCounts(context.Background(), userID)
+	require.Nil(t, views)
+	require.ErrorIs(t, err, ErrFailedToCalculateViewCounts)
+	require.ErrorIs(t, err, dbErr)
+}
+
+func TestService_ListViewsWithCounts_TotalsUseRepositoryDefaults(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListViews(gomock.Any(), userID).Return([]db.View{
+		{ID: "reviews", Slug: "reviews", ShowInSidebar: true, Query: sql.NullString{String: "reason:review_requested", Valid: true}},
+	}, nil)
+	m.EXPECT().ListViewRepositoryDefaults(gomock.Any(), userID).
+		Return(map[string][]int64{"reviews": {7}, "inbox": {1, 2}}, nil)
+
+	// Unread badges retain their existing queries.
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, gomock.Any()).
+		Return(db.ListNotificationsFromQueryResult{}, nil).Times(6)
+	for _, spec := range []struct {
+		queryStr     string
+		repositories []int64
+	}{
+		{"reason:review_requested", []int64{7}},
+		{"in:inbox", []int64{1, 2}},
+		{"in:anywhere", nil},
+		{"in:archive", nil},
+		{"in:snoozed", nil},
+		{"is:starred", nil},
+	} {
+		dbQuery, err := query.BuildQueryWithOptions(spec.queryStr, 0, 0, false)
+		require.NoError(t, err)
+		dbQuery = query.ApplyRepositoryFilter(dbQuery, spec.repositories)
+		m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, dbQuery).
+			Return(db.ListNotificationsFromQueryResult{Total: 12}, nil)
+	}
+
+	views, err := NewService(m).ListViewsWithCounts(context.Background(), userID)
+	require.NoError(t, err)
+	require.Len(t, views, 6)
+	for _, v := range views {
+		require.NotNil(t, v.TotalCount)
+		require.Equal(t, int64(12), *v.TotalCount)
+	}
+}
+
+func TestService_CalculateViewTotalCount_ResolvesNamedViews(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListViews(gomock.Any(), userID).Return([]db.View{
+		{ID: "helper", Name: "Helper", Query: sql.NullString{String: "in:inbox", Valid: true}},
+	}, nil)
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, compiled db.NotificationQuery) (db.ListNotificationsFromQueryResult, error) {
+			require.Zero(t, compiled.Limit)
+			require.False(t, compiled.IncludeSubject)
+			require.Contains(t, compiled.Args, userID)
+			return db.ListNotificationsFromQueryResult{Total: 12}, nil
+		})
+
+	count, err := NewService(m).calculateViewTotalCount(context.Background(), userID, `in:"Helper"`, nil)
+	require.NoError(t, err)
+	require.Equal(t, int64(12), count)
 }

@@ -20,6 +20,7 @@ export interface Tag {
 	color?: string;
 	description?: string;
 	unreadCount?: number;
+	totalCount?: number;
 	/** Default repository selection for the tag's view (absent/empty = all). */
 	repositoryIds?: number[];
 }

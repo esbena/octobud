@@ -93,13 +93,24 @@ export function createViewStore(
 		unreadCount: 0,
 	}));
 
-	const builtInViewList = derived(builtInInboxView, ($builtInInboxView) => [
-		$builtInInboxView,
-		builtInStarredView,
-		builtInSnoozedView,
-		builtInArchiveView,
-		builtInEverythingView,
-	]);
+	const builtInViewList = derived([builtInInboxView, views], ([$builtInInboxView, $views]) =>
+		[
+			$builtInInboxView,
+			builtInStarredView,
+			builtInSnoozedView,
+			builtInArchiveView,
+			builtInEverythingView,
+		].map((view) => {
+			const systemView = $views.find(
+				(candidate) => candidate.systemView && candidate.slug === view.slug
+			);
+			return {
+				...view,
+				unreadCount: systemView?.unreadCount ?? 0,
+				totalCount: systemView?.totalCount,
+			};
+		})
+	);
 
 	const defaultView = derived(views, ($views) => {
 		const explicitDefault = $views.find((view) => view.isDefault);

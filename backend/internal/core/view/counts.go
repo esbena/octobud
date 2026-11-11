@@ -31,6 +31,25 @@ var (
 	ErrFailedToListNotifications = errors.New("failed to list notifications")
 )
 
+// calculateViewTotalCount uses the same query rules as the notification list,
+// without loading notification rows.
+func (s *Service) calculateViewTotalCount(
+	ctx context.Context,
+	userID, queryStr string,
+	repositoryIDs []int64,
+) (int64, error) {
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).BuildQuery(queryStr, 0, 0, false)
+	if err != nil {
+		return 0, errors.Join(ErrFailedToBuildQuery, err)
+	}
+	dbQuery = query.ApplyRepositoryFilter(dbQuery, repositoryIDs)
+	result, err := s.queries.ListNotificationsFromQuery(ctx, userID, dbQuery)
+	if err != nil {
+		return 0, errors.Join(ErrFailedToListNotifications, err)
+	}
+	return result.Total, nil
+}
+
 // calculateViewUnreadCount calculates the count of "new" (unread) notifications for a view with given query.
 func (s *Service) calculateViewUnreadCount(
 	ctx context.Context,

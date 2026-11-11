@@ -27,6 +27,7 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/db"
 	"github.com/octobud-hq/octobud/backend/internal/db/mocks"
 	"github.com/octobud-hq/octobud/backend/internal/models"
+	"github.com/octobud-hq/octobud/backend/internal/query"
 )
 
 func TestService_ListTagsWithUnreadCounts(t *testing.T) {
@@ -54,7 +55,7 @@ func TestService_ListTagsWithUnreadCounts(t *testing.T) {
 				m.EXPECT().
 					ListNotificationsFromQuery(gomock.Any(), "test-user-id", gomock.Any()).
 					Return(db.ListNotificationsFromQueryResult{Total: 5}, nil).
-					Times(2)
+					Times(4)
 			},
 			expectErr: false,
 			checkResult: func(t *testing.T, result []models.Tag) {
@@ -62,6 +63,8 @@ func TestService_ListTagsWithUnreadCounts(t *testing.T) {
 				require.Equal(t, "bug", result[0].Name)
 				require.NotNil(t, result[0].UnreadCount)
 				require.Equal(t, int64(5), *result[0].UnreadCount)
+				require.NotNil(t, result[0].TotalCount)
+				require.Equal(t, int64(5), *result[0].TotalCount)
 			},
 		},
 		{
@@ -104,6 +107,79 @@ func TestService_ListTagsWithUnreadCounts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestService_ListTagsWithUnreadCounts_ReadButNonempty(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListAllTags(gomock.Any(), userID).
+		Return([]db.Tag{{ID: "1", Name: "Bug", Slug: "bug"}}, nil)
+	m.EXPECT().ListViewRepositoryDefaults(gomock.Any(), userID).Return(nil, nil)
+	unreadQuery, err := query.BuildQueryWithOptions("tags:bug in:anywhere -is:muted is:unread", 0, 0, false)
+	require.NoError(t, err)
+	totalQuery, err := query.BuildQueryWithOptions("tags:bug in:anywhere -is:muted", 0, 0, false)
+	require.NoError(t, err)
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, unreadQuery).
+		Return(db.ListNotificationsFromQueryResult{}, nil)
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, totalQuery).
+		Return(db.ListNotificationsFromQueryResult{Total: 12}, nil)
+
+	tags, err := NewService(m).ListTagsWithUnreadCounts(context.Background(), userID)
+	require.NoError(t, err)
+	require.Len(t, tags, 1)
+	require.Nil(t, tags[0].UnreadCount)
+	require.NotNil(t, tags[0].TotalCount)
+	require.Equal(t, int64(12), *tags[0].TotalCount)
+}
+
+func TestService_ListTagsWithUnreadCounts_TotalFailureIsReturned(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListAllTags(gomock.Any(), userID).
+		Return([]db.Tag{{ID: "1", Name: "Bug", Slug: "bug"}}, nil)
+	m.EXPECT().ListViewRepositoryDefaults(gomock.Any(), userID).Return(nil, nil)
+	dbErr := errors.New("count unavailable")
+	gomock.InOrder(
+		m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, gomock.Any()).
+			Return(db.ListNotificationsFromQueryResult{}, nil),
+		m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, gomock.Any()).
+			Return(db.ListNotificationsFromQueryResult{}, dbErr),
+	)
+
+	tags, err := NewService(m).ListTagsWithUnreadCounts(context.Background(), userID)
+	require.Nil(t, tags)
+	require.ErrorIs(t, err, ErrFailedToListTags)
+	require.ErrorIs(t, err, dbErr)
+}
+
+func TestService_ListTagsWithUnreadCounts_TotalUsesRepositoryDefault(t *testing.T) {
+	const userID = "test-user-id"
+	ctrl := gomock.NewController(t)
+	m := mocks.NewMockStore(ctrl)
+	m.EXPECT().ListAllTags(gomock.Any(), userID).
+		Return([]db.Tag{{ID: "1", Name: "Bug", Slug: "bug"}}, nil)
+	m.EXPECT().ListViewRepositoryDefaults(gomock.Any(), userID).
+		Return(map[string][]int64{models.TagViewKey("1"): {7}}, nil)
+
+	unreadQuery, err := query.BuildQueryWithOptions("tags:bug in:anywhere -is:muted is:unread", 0, 0, false)
+	require.NoError(t, err)
+	totalQuery, err := query.BuildQueryWithOptions("tags:bug in:anywhere -is:muted", 0, 0, false)
+	require.NoError(t, err)
+	totalQuery = query.ApplyRepositoryFilter(totalQuery, []int64{7})
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, unreadQuery).
+		Return(db.ListNotificationsFromQueryResult{Total: 4}, nil)
+	m.EXPECT().ListNotificationsFromQuery(gomock.Any(), userID, totalQuery).
+		Return(db.ListNotificationsFromQueryResult{Total: 12}, nil)
+
+	tags, err := NewService(m).ListTagsWithUnreadCounts(context.Background(), userID)
+	require.NoError(t, err)
+	require.Len(t, tags, 1)
+	require.Equal(t, []int64{7}, tags[0].RepositoryIDs)
+	require.Equal(t, int64(4), *tags[0].UnreadCount)
+	require.NotNil(t, tags[0].TotalCount)
+	require.Equal(t, int64(12), *tags[0].TotalCount)
 }
 
 func TestService_CreateTag(t *testing.T) {
@@ -698,7 +774,7 @@ func TestService_CalculateTagUnreadCount(t *testing.T) {
 			service := NewService(mockQuerier)
 
 			ctx := context.Background()
-			count, err := service.calculateTagUnreadCount(ctx, "test-user-id", tt.tagSlug)
+			count, err := service.calculateTagCount(ctx, "test-user-id", tt.tagSlug, true, nil)
 
 			if tt.expectErr {
 				require.Error(t, err)
