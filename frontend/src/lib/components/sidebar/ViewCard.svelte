@@ -17,6 +17,7 @@
 	import { onDestroy } from "svelte";
 	import type { NotificationView } from "$lib/api/types";
 	import { normalizeViewIcon } from "$lib/utils/viewIcons";
+	import NotificationCounts from "./NotificationCounts.svelte";
 	export let view: NotificationView;
 	export let selected = false;
 	export let showActions = true;
@@ -176,7 +177,7 @@
 		<div
 			role="button"
 			tabindex={reorderMode ? -1 : 0}
-			class={`flex-1 px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-600/40 ${reorderMode ? "" : "cursor-pointer"}`}
+			class={`min-w-0 flex-1 px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-600/40 ${reorderMode ? "" : "cursor-pointer"}`}
 			aria-pressed={selected}
 			on:click={handleClick}
 			on:keydown={(event) => {
@@ -186,7 +187,7 @@
 				}
 			}}
 		>
-			<div class={`flex ${hasDescription ? "items-start" : "items-center"} gap-2 pr-10`}>
+			<div class={`flex ${hasDescription ? "items-start" : "items-center"} gap-2`}>
 				<span
 					class={`flex flex-shrink-0 items-center justify-center text-base ${
 						selected ? "text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"
@@ -203,7 +204,7 @@
 					</div>
 					{#if hasDescription}
 						<p
-							class={` pr-8 text-xs ${
+							class={`text-xs ${
 								selected ? "text-gray-600 dark:text-gray-400" : "text-gray-600 dark:text-gray-400"
 							}`}
 						>
@@ -213,17 +214,14 @@
 				</div>
 			</div>
 		</div>
-		{#if count !== undefined && count > 0 && !(showActions && hovered && !view.isDefault) && !reorderMode}
-			<span
-				class={`absolute right-2 top-1/2 flex h-6 -translate-y-1/2 items-center justify-center rounded-full px-2 text-[11px] font-semibold transition-opacity delay-200 ${
-					selected
-						? "bg-indigo-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100"
-						: "bg-gray-200 text-gray-700 dark:bg-gray-800/60 dark:text-gray-100"
-				}`}
-				aria-label={`${count} new notification${count === 1 ? "" : "s"}`}
+		{#if !reorderMode}
+			<div
+				class="mr-2 flex-shrink-0"
+				class:min-w-6={showActions && !view.isDefault}
+				class:invisible={showActions && (hovered || actionsOpen) && !view.isDefault}
 			>
-				{count}
-			</span>
+				<NotificationCounts unread={count} total={view.totalCount} {selected} />
+			</div>
 		{/if}
 		{#if showActions && (hovered || actionsOpen) && !view.isDefault && !reorderMode}
 			<button

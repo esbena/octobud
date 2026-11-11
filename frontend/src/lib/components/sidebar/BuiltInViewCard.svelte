@@ -17,12 +17,15 @@
 	import type { NotificationView } from "$lib/api/types";
 	import { archiveIconPaths } from "$lib/utils/archiveIcons";
 	import { inboxIconPath } from "$lib/utils/inboxIcons";
+	import NotificationCounts from "./NotificationCounts.svelte";
+	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
 
 	export let view: NotificationView;
 	export let selected = false;
 	export let icon: "inbox" | "infinity" | "check" | "archive" | "snooze" | "star";
 	export let count: number | undefined = undefined;
 	export let onSelect: (slug: string) => void | Promise<void> = () => {};
+	const { showTotalCounts } = getNotificationSettingsStore();
 
 	function handleClick() {
 		void onSelect(view.slug);
@@ -93,17 +96,12 @@
 				<span class="text-[14px] font-medium truncate text-gray-700 dark:text-gray-100">
 					{view.name}
 				</span>
-				{#if count !== undefined && count > 0}
-					<span
-						class={`flex h-6 flex-shrink-0 items-center justify-center rounded-full px-2 py-1 text-[11px] font-semibold transition-opacity delay-200 ${
-							selected
-								? "bg-indigo-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100"
-								: "bg-gray-200 text-gray-700 dark:bg-gray-800/60 dark:text-gray-100"
-						}`}
-						aria-label={`${count} new notification${count === 1 ? "" : "s"}`}
-					>
-						{count}
-					</span>
+				{#if count !== undefined || ($showTotalCounts && view.slug === "starred")}
+					<NotificationCounts
+						unread={$showTotalCounts ? view.unreadCount : count}
+						total={view.totalCount}
+						{selected}
+					/>
 				{/if}
 			</span>
 			{#if view.description}

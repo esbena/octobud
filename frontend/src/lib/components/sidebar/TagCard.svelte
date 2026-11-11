@@ -17,6 +17,7 @@
 	import { onDestroy } from "svelte";
 	import type { Tag } from "$lib/api/tags";
 	import { iconPaths } from "./sidebarIcons";
+	import NotificationCounts from "./NotificationCounts.svelte";
 
 	export let tag: Tag;
 	export let selected = false;
@@ -173,7 +174,7 @@
 		<div
 			role="button"
 			tabindex={reorderMode ? -1 : 0}
-			class={`flex-1 px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-600/40 ${reorderMode ? "" : "cursor-pointer"}`}
+			class={`min-w-0 flex-1 px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-600/40 ${reorderMode ? "" : "cursor-pointer"}`}
 			aria-pressed={selected}
 			on:click={handleClick}
 			on:keydown={(event) => {
@@ -183,7 +184,7 @@
 				}
 			}}
 		>
-			<div class="flex items-center gap-2 pr-10">
+			<div class="flex items-center gap-2">
 				<span class="flex flex-shrink-0 items-center justify-center" aria-hidden="true">
 					<svg
 						class="h-[18px] w-[18px]"
@@ -208,17 +209,14 @@
 				</div>
 			</div>
 		</div>
-		{#if tag.unreadCount !== undefined && tag.unreadCount > 0 && !(showActions && hovered) && !reorderMode}
-			<span
-				class={`absolute right-2 top-1/2 flex h-6 -translate-y-1/2 items-center justify-center rounded-full px-2 text-[11px] font-semibold transition-opacity delay-200 ${
-					selected
-						? "bg-indigo-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100"
-						: "bg-gray-200 text-gray-700 dark:bg-gray-800/60 dark:text-gray-100"
-				}`}
-				aria-label={`${tag.unreadCount} new notification${tag.unreadCount === 1 ? "" : "s"}`}
+		{#if !reorderMode}
+			<div
+				class="mr-2 flex-shrink-0"
+				class:min-w-6={showActions}
+				class:invisible={showActions && (hovered || actionsOpen)}
 			>
-				{tag.unreadCount}
-			</span>
+				<NotificationCounts unread={tag.unreadCount} total={tag.totalCount} {selected} />
+			</div>
 		{/if}
 		{#if showActions && (hovered || actionsOpen) && !reorderMode}
 			<button
