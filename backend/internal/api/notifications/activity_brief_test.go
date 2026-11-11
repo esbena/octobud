@@ -24,6 +24,12 @@ import (
 
 type briefModel func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error)
 
+func (h *Handler) withActivityBriefs(model activitybrief.Summarizer) *Handler {
+	h.briefFactory = func(string) activitybrief.Summarizer { return model }
+	h.briefQueue = activitybrief.NewQueue()
+	return h
+}
+
 func (f briefModel) Summarize(ctx context.Context, snapshot activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
 	return f(ctx, snapshot)
 }
@@ -100,7 +106,7 @@ func TestActivityBriefOnDemandAndErrors(t *testing.T) {
 					[]types.TimelineEvent{{ID: json.RawMessage("1"), Event: "closed", CreatedAt: &at}}, 1, nil)
 			}
 			if test.configured {
-				handler.WithActivityBriefs(briefModel(func(_ context.Context, snapshot activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
+				handler.withActivityBriefs(briefModel(func(_ context.Context, snapshot activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
 					require.Equal(t, "id", snapshot.NotificationID)
 					require.Equal(t, "reader", snapshot.ReaderUsername)
 					require.Len(t, snapshot.New, 1)

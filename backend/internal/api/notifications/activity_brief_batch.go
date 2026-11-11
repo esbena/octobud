@@ -146,7 +146,7 @@ func (h *Handler) handleActivityBriefBatch(w http.ResponseWriter, r *http.Reques
 				added, err := h.briefQueue.Enqueue(activitybrief.Key{
 					UserID: userID, NotificationID: notification.GithubID,
 					Version: notification.EffectiveSortDate.UTC().Format(time.RFC3339Nano), Days: input.Days,
-				}, h.runActivityBrief(userID, user.GithubUsername, selected, h.configuredBriefModel(settings)))
+				}, h.runActivityBrief(userID, user.GithubUsername, selected, h.briefFactory(settings.ActivityHighlights.Model)))
 				if err != nil {
 					helpers.WriteError(w, http.StatusTooManyRequests, err.Error())
 					return nil
@@ -209,7 +209,7 @@ func (h *Handler) enqueueActivityBriefBatch(
 			version := notification.EffectiveSortDate.UTC().Format(time.RFC3339Nano)
 			added, err := h.briefQueue.Enqueue(activitybrief.Key{
 				UserID: userID, NotificationID: notification.GithubID, Version: version, Days: days,
-			}, h.runActivityBrief(userID, reader, notification, h.configuredBriefModel(settings)))
+			}, h.runActivityBrief(userID, reader, notification, h.briefFactory(settings.ActivityHighlights.Model)))
 			if err != nil {
 				if queued > 0 {
 					response := h.briefStatus(userID, settings)

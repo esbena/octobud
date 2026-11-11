@@ -21,7 +21,7 @@ import (
 
 func TestIndividualActivityBriefUsesSharedQueueAndCache(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(briefModel(nil))
+	handler.withActivityBriefs(briefModel(nil))
 	configureBriefTestSettings(t, handler, true)
 	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
 	at := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
@@ -48,7 +48,7 @@ func TestIndividualActivityBriefUsesSharedQueueAndCache(t *testing.T) {
 
 func TestIndividualActivityBriefQueuesOnlySelectedNotification(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(briefModel(nil))
+	handler.withActivityBriefs(briefModel(nil))
 	configureBriefTestSettings(t, handler, true)
 	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
 	started := make(chan struct{}, 10)
@@ -80,7 +80,7 @@ func TestIndividualActivityBriefQueuesOnlySelectedNotification(t *testing.T) {
 
 func TestIndividualActivityBriefRejectsMissingNotificationAndMixedScope(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(briefModel(nil))
+	handler.withActivityBriefs(briefModel(nil))
 	configureBriefTestSettings(t, handler, true)
 	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
 	notifications.EXPECT().GetByGithubID(gomock.Any(), "owner", "missing").Return(db.Notification{}, sql.ErrNoRows)
@@ -100,7 +100,7 @@ func TestIndividualActivityBriefRejectsMissingNotificationAndMixedScope(t *testi
 
 func TestBatchFillsGapsAcrossPagesAndRepeatedClicksExtendQueue(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
+	handler.withActivityBriefs(briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
 		t.Error("batch selection must not synchronously invoke model")
 		return nil, nil
 	}))
@@ -181,7 +181,7 @@ func TestBatchStatusReadDoesNotFetchOrSummarize(t *testing.T) {
 
 func TestBatchReportsAlreadyQueuedJobsWhenLaterPageFails(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(briefModel(nil))
+	handler.withActivityBriefs(briefModel(nil))
 	configureBriefTestSettings(t, handler, true)
 	t.Cleanup(handler.briefQueue.Close)
 	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
@@ -216,7 +216,7 @@ func TestBatchRejectsInvalidHorizonsAndTrailingDataWithoutWork(t *testing.T) {
 	for _, body := range []string{`{"days":0}`, `{"days":2}`, `{"days":3000}`, `{"days":3,"limit":1000}`, `{"days":3} {}`} {
 		t.Run(body, func(t *testing.T) {
 			handler, _, _, auth := setupTestHandler(gomock.NewController(t))
-			handler.WithActivityBriefs(briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
+			handler.withActivityBriefs(briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
 				t.Error("invalid request invoked model")
 				return nil, nil
 			}))

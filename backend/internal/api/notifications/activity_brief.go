@@ -17,12 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func (h *Handler) WithActivityBriefs(model activitybrief.Summarizer) *Handler {
-	h.briefFactory = func(string) activitybrief.Summarizer { return model }
-	h.briefQueue = activitybrief.NewQueue()
-	return h
-}
-
 func (h *Handler) StopActivityBriefs() {
 	if h.copilotSettings != nil {
 		h.copilotSettings.Close()
@@ -43,13 +37,6 @@ func (h *Handler) ConfigureCopilotSettings() *copilotsettings.Service {
 		}
 	})
 	return h.copilotSettings
-}
-
-func (h *Handler) configuredBriefModel(settings copilotsettings.Settings) activitybrief.Summarizer {
-	if h.briefFactory == nil {
-		return nil
-	}
-	return h.briefFactory(settings.ActivityHighlights.Model)
 }
 
 func (h *Handler) useBriefSettings(
@@ -120,7 +107,7 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 				if !settings.HighlightsEnabled() || h.briefFactory == nil {
 					return activitybrief.ErrUnavailable
 				}
-				model = h.configuredBriefModel(settings)
+				model = h.briefFactory(settings.ActivityHighlights.Model)
 				stop = context.AfterFunc(work, cancel)
 				return nil
 			},

@@ -38,7 +38,7 @@ func configureBriefTestSettings(t *testing.T, h *Handler, enabled bool) *dbmocks
 
 func TestDisabledSettingsPreventBatchWork(t *testing.T) {
 	handler, _, _, auth := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(
+	handler.withActivityBriefs(
 		briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
 			t.Fatal("disabled feature invoked model")
 			return nil, nil
@@ -57,7 +57,7 @@ func TestDisabledSettingsPreventBatchWork(t *testing.T) {
 
 func TestDisablingSettingsCancelsRunningQueueWork(t *testing.T) {
 	handler, _, _, _ := setupTestHandler(gomock.NewController(t))
-	handler.WithActivityBriefs(briefModel(nil))
+	handler.withActivityBriefs(briefModel(nil))
 	store := configureBriefTestSettings(t, handler, true)
 	started, stopped := make(chan struct{}), make(chan struct{})
 	_, err := handler.briefQueue.Enqueue(activitybrief.Key{UserID: "owner", NotificationID: "one"},
