@@ -21,16 +21,17 @@ import (
 
 // View represents a view with unread count
 type View struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Slug         string  `json:"slug"`
-	Description  *string `json:"description,omitempty"`
-	Icon         *string `json:"icon,omitempty"`
-	IsDefault    bool    `json:"isDefault"`
-	SystemView   bool    `json:"systemView,omitempty"`
-	Query        string  `json:"query"`
-	UnreadCount  int64   `json:"unreadCount"`
-	DisplayOrder int     `json:"displayOrder"`
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	Slug          string  `json:"slug"`
+	Description   *string `json:"description,omitempty"`
+	Icon          *string `json:"icon,omitempty"`
+	IsDefault     bool    `json:"isDefault"`
+	ShowInSidebar bool    `json:"showInSidebar"`
+	SystemView    bool    `json:"systemView,omitempty"`
+	Query         string  `json:"query"`
+	UnreadCount   int64   `json:"unreadCount"`
+	DisplayOrder  int     `json:"displayOrder"`
 	// RepositoryIDs is the view's default repository selection (empty = all repositories).
 	RepositoryIDs []int64 `json:"repositoryIds,omitempty"`
 }
@@ -53,14 +54,15 @@ func ViewFromDB(view db.View) View {
 	}
 
 	return View{
-		ID:           view.ID, // Now a UUID string
-		Name:         view.Name,
-		Slug:         view.Slug,
-		Description:  NullStringPtr(view.Description),
-		Icon:         NullStringPtr(view.Icon),
-		IsDefault:    view.IsDefault,
-		Query:        query,
-		DisplayOrder: int(view.DisplayOrder),
+		ID:            view.ID, // Now a UUID string
+		Name:          view.Name,
+		Slug:          view.Slug,
+		Description:   NullStringPtr(view.Description),
+		Icon:          NullStringPtr(view.Icon),
+		IsDefault:     view.IsDefault,
+		ShowInSidebar: view.ShowInSidebar,
+		Query:         query,
+		DisplayOrder:  int(view.DisplayOrder),
 	}
 }
 

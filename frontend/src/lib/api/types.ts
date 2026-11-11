@@ -170,6 +170,7 @@ export interface NotificationView {
 	description?: string;
 	icon?: string;
 	isDefault?: boolean;
+	showInSidebar?: boolean;
 	systemView?: boolean;
 	query: string; // New: query string instead of filters array
 	unreadCount: number;
@@ -182,6 +183,7 @@ export interface NotificationViewInput {
 	name: string;
 	description?: string;
 	icon?: string;
+	showInSidebar?: boolean;
 	query: string; // New: query string instead of filters array
 	/** Default repository selection: omit to leave unchanged, [] to clear. */
 	repositoryIds?: number[];
@@ -192,6 +194,7 @@ export interface NotificationViewDraft {
 	name: string;
 	description: string;
 	icon?: string;
+	showInSidebar: boolean;
 	query: string; // New: query string instead of filters array
 	/** Repository selection captured from the list when saving from the Save menu. */
 	repositoryIds?: number[];

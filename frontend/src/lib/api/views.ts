@@ -41,6 +41,7 @@ export class ViewLinkedRulesError extends ApiError {
 
 const cloneView = (view: NotificationView): NotificationView => ({
 	...view,
+	showInSidebar: view.showInSidebar ?? true,
 	slug: view.slug,
 	query: view.query || "",
 });

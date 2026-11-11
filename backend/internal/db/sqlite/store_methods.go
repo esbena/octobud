@@ -902,14 +902,15 @@ func (s *Store) CreateView(
 
 	v, err := retryViewOperation(ctx, s, func() (View, error) {
 		return s.q.CreateView(ctx, CreateViewParams{
-			UserID:       userID,
-			Name:         arg.Name,
-			Slug:         arg.Slug,
-			Description:  arg.Description,
-			IsDefault:    isDefault,
-			Icon:         arg.Icon,
-			Query:        arg.Query,
-			DisplayOrder: 0,
+			UserID:        userID,
+			Name:          arg.Name,
+			Slug:          arg.Slug,
+			Description:   arg.Description,
+			IsDefault:     isDefault,
+			ShowInSidebar: fromNullBool(arg.ShowInSidebar),
+			Icon:          arg.Icon,
+			Query:         arg.Query,
+			DisplayOrder:  0,
 		})
 	})
 	if err != nil {
@@ -954,14 +955,15 @@ func (s *Store) UpdateView(
 ) (db.View, error) {
 	v, err := retryViewOperation(ctx, s, func() (View, error) {
 		return s.q.UpdateView(ctx, UpdateViewParams{
-			UserID:      userID,
-			ID:          arg.ID,
-			Name:        arg.Name,
-			Slug:        arg.Slug,
-			Description: arg.Description,
-			Icon:        arg.Icon,
-			Query:       arg.Query,
-			IsDefault:   fromNullBool(arg.IsDefault),
+			UserID:        userID,
+			ID:            arg.ID,
+			Name:          arg.Name,
+			Slug:          arg.Slug,
+			Description:   arg.Description,
+			Icon:          arg.Icon,
+			Query:         arg.Query,
+			IsDefault:     fromNullBool(arg.IsDefault),
+			ShowInSidebar: fromNullBool(arg.ShowInSidebar),
 		})
 	})
 	if err != nil {

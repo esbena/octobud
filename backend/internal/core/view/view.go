@@ -90,7 +90,7 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	response := make([]models.View, 0, len(views)+6)
 	for _, view := range views {
 		// Calculate "new" count for this view
-		unreadCount, countErr := s.calculateViewUnreadCount(ctx, userID, view.Query)
+		unreadCount, countErr := s.calculateViewUnreadCount(ctx, userID, view)
 		if countErr != nil {
 			return nil, errors.Join(ErrFailedToCalculateViewCounts, countErr)
 		}
@@ -108,13 +108,14 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	}
 
 	response = append(response, models.View{
-		ID:          "inbox",
-		Name:        "Inbox",
-		Slug:        "inbox",
-		Icon:        models.StrPtr("inbox"),
-		SystemView:  true,
-		Query:       "in:inbox",
-		UnreadCount: inboxCount,
+		ID:            "inbox",
+		Name:          "Inbox",
+		Slug:          "inbox",
+		Icon:          models.StrPtr("inbox"),
+		SystemView:    true,
+		ShowInSidebar: true,
+		Query:         "in:inbox",
+		UnreadCount:   inboxCount,
 	})
 
 	everythingCount, err := s.calculateEverythingUnreadCount(ctx, userID)
@@ -123,13 +124,14 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	}
 
 	response = append(response, models.View{
-		ID:          "everything",
-		Name:        "Everything",
-		Slug:        "everything",
-		Icon:        models.StrPtr("infinity"),
-		SystemView:  true,
-		Query:       "in:anywhere",
-		UnreadCount: everythingCount,
+		ID:            "everything",
+		Name:          "Everything",
+		Slug:          "everything",
+		Icon:          models.StrPtr("infinity"),
+		SystemView:    true,
+		ShowInSidebar: true,
+		Query:         "in:anywhere",
+		UnreadCount:   everythingCount,
 	})
 
 	archiveCount, err := s.calculateArchiveUnreadCount(ctx, userID)
@@ -138,13 +140,14 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	}
 
 	response = append(response, models.View{
-		ID:          "archive",
-		Name:        "Archive",
-		Slug:        "archive",
-		Icon:        models.StrPtr("archive"),
-		SystemView:  true,
-		Query:       "in:archive",
-		UnreadCount: archiveCount,
+		ID:            "archive",
+		Name:          "Archive",
+		Slug:          "archive",
+		Icon:          models.StrPtr("archive"),
+		SystemView:    true,
+		ShowInSidebar: true,
+		Query:         "in:archive",
+		UnreadCount:   archiveCount,
 	})
 
 	snoozedCount, err := s.calculateSnoozedUnreadCount(ctx, userID)
@@ -153,13 +156,14 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	}
 
 	response = append(response, models.View{
-		ID:          "snoozed",
-		Name:        "Snoozed",
-		Slug:        "snoozed",
-		Icon:        models.StrPtr("clock"),
-		SystemView:  true,
-		Query:       "in:snoozed",
-		UnreadCount: snoozedCount,
+		ID:            "snoozed",
+		Name:          "Snoozed",
+		Slug:          "snoozed",
+		Icon:          models.StrPtr("clock"),
+		SystemView:    true,
+		ShowInSidebar: true,
+		Query:         "in:snoozed",
+		UnreadCount:   snoozedCount,
 	})
 
 	starredCount, err := s.calculateStarredUnreadCount(ctx, userID)
@@ -168,13 +172,14 @@ func (s *Service) ListViewsWithCounts(ctx context.Context, userID string) ([]mod
 	}
 
 	response = append(response, models.View{
-		ID:          "starred",
-		Name:        "Starred",
-		Slug:        "starred",
-		Icon:        models.StrPtr("star"),
-		SystemView:  true,
-		Query:       "is:starred",
-		UnreadCount: starredCount,
+		ID:            "starred",
+		Name:          "Starred",
+		Slug:          "starred",
+		Icon:          models.StrPtr("star"),
+		SystemView:    true,
+		ShowInSidebar: true,
+		Query:         "is:starred",
+		UnreadCount:   starredCount,
 	})
 
 	for i := range response {
@@ -252,6 +257,7 @@ func (s *Service) CreateView(
 	isDefault *bool,
 	queryStr string,
 	repositoryIDs []int64,
+	showInSidebar *bool,
 ) (models.View, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -293,6 +299,10 @@ func (s *Service) CreateView(
 	if isDefault != nil {
 		params.IsDefault = *isDefault
 	}
+	if showInSidebar != nil {
+		params.ShowInSidebar = sql.NullBool{Bool: *showInSidebar, Valid: true}
+	}
+
 	var view db.View
 	err := s.queries.WithViewTransaction(ctx, func(store db.ViewStore) error {
 		views, err := store.ListViews(ctx, userID)
@@ -319,7 +329,7 @@ func (s *Service) CreateView(
 	}
 
 	// Calculate initial count for the new view
-	unreadCount, err := s.calculateViewUnreadCount(ctx, userID, view.Query)
+	unreadCount, err := s.calculateViewUnreadCount(ctx, userID, view)
 	if err != nil {
 		// Don't fail creation if count calculation fails
 		unreadCount = 0
@@ -345,6 +355,7 @@ func (s *Service) UpdateView(
 	isDefault *bool,
 	queryStr *string,
 	repositoryIDs []int64,
+	showInSidebar *bool,
 ) (models.View, error) {
 	params := db.UpdateViewParams{
 		ID: viewID,
@@ -384,6 +395,9 @@ func (s *Service) UpdateView(
 	if isDefault != nil {
 		params.IsDefault = sql.NullBool{Bool: *isDefault, Valid: true}
 	}
+	if showInSidebar != nil {
+		params.ShowInSidebar = sql.NullBool{Bool: *showInSidebar, Valid: true}
+	}
 	if queryStr != nil {
 		queryTrimmed := strings.TrimSpace(*queryStr)
 		if queryTrimmed == "" {
@@ -413,7 +427,7 @@ func (s *Service) UpdateView(
 	}
 
 	// Calculate count for the updated view
-	unreadCount, err := s.calculateViewUnreadCount(ctx, userID, view.Query)
+	unreadCount, err := s.calculateViewUnreadCount(ctx, userID, view)
 	if err != nil {
 		// Don't fail update if count calculation fails
 		unreadCount = 0

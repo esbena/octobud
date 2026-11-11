@@ -33,6 +33,7 @@
 		description: string;
 		icon: string;
 		query: string;
+		showInSidebar: boolean;
 		createAutoRule?: boolean;
 		ruleConfig?: {
 			name: string;
@@ -56,6 +57,7 @@
 		description?: string;
 		icon?: string;
 		query?: string;
+		showInSidebar?: boolean;
 		/** Present when saving from the list's Save menu: the selection stored as the view's default. */
 		repositoryIds?: number[];
 	} | null = null;
@@ -64,6 +66,7 @@
 	let description = "";
 	let query = "";
 	let icon = DEFAULT_VIEW_ICON;
+	let showInSidebar = true;
 	let showQuerySyntaxModal = false;
 
 	// Auto-rule creation fields
@@ -145,6 +148,7 @@
 			description: description.trim(),
 			icon: preparedIcon,
 			query: query.trim(),
+			showInSidebar,
 		};
 
 		if (createAutoRule && !initialValue?.id) {
@@ -176,6 +180,7 @@
 		name = initialValue?.name?.trim() ?? (initialValue?.id ? "" : "");
 		description = initialValue?.description?.trim() ?? "";
 		icon = normalizeViewIcon(initialValue?.icon);
+		showInSidebar = initialValue?.showInSidebar ?? true;
 		// Pre-populate with in:inbox,filtered for new views, use existing query for editing
 		query = initialValue?.query?.trim() ?? (initialValue?.id ? "" : "in:inbox,filtered");
 		// Reset auto-rule fields when opening dialog
@@ -195,6 +200,7 @@
 		description = "";
 		icon = DEFAULT_VIEW_ICON;
 		query = "in:inbox,filtered";
+		showInSidebar = true;
 		createAutoRule = false;
 	}
 </script>
@@ -306,6 +312,22 @@
 					</p>
 				{/if}
 			</div>
+
+			<label class="flex items-start gap-3 cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={showInSidebar}
+					aria-label="Show in sidebar"
+					class="mt-0.5 w-4 h-4 rounded border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-600/30 focus:ring-offset-0"
+				/>
+				<div>
+					<div class="text-sm font-medium text-gray-900 dark:text-gray-200">Show in sidebar</div>
+					<p class="text-xs text-gray-600 dark:text-gray-500 mt-0.5">
+						When unchecked, this view appears under More views without an unread badge. Other
+						queries can still reference it.
+					</p>
+				</div>
+			</label>
 
 			<!-- Auto-rule creation section - only for new views -->
 			{#if !initialValue?.id}

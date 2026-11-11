@@ -112,23 +112,25 @@ type RemoveTagAssignmentParams struct {
 
 // CreateViewParams contains the parameters for creating a view
 type CreateViewParams struct {
-	Name        string
-	Slug        string
-	Description sql.NullString
-	IsDefault   interface{}
-	Icon        sql.NullString
-	Query       sql.NullString
+	Name          string
+	Slug          string
+	Description   sql.NullString
+	IsDefault     interface{}
+	ShowInSidebar sql.NullBool
+	Icon          sql.NullString
+	Query         sql.NullString
 }
 
 // UpdateViewParams contains the parameters for updating a view
 type UpdateViewParams struct {
-	ID          string // UUID
-	Name        sql.NullString
-	Slug        sql.NullString
-	Description sql.NullString
-	Icon        sql.NullString
-	Query       sql.NullString
-	IsDefault   sql.NullBool
+	ID            string // UUID
+	Name          sql.NullString
+	Slug          sql.NullString
+	Description   sql.NullString
+	Icon          sql.NullString
+	Query         sql.NullString
+	IsDefault     sql.NullBool
+	ShowInSidebar sql.NullBool
 }
 
 // UpdateViewOrderParams contains the parameters for updating view display order

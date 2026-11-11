@@ -219,14 +219,15 @@ type User struct {
 
 // View represents a view
 type View struct {
-	ID           string // UUID
-	UserID       string
-	Name         string
-	Description  sql.NullString
-	IsDefault    bool
-	CreatedAt    time.Time
-	Icon         sql.NullString
-	Slug         string
-	Query        sql.NullString
-	DisplayOrder int32
+	ID            string // UUID
+	UserID        string
+	Name          string
+	Description   sql.NullString
+	IsDefault     bool
+	ShowInSidebar bool
+	CreatedAt     time.Time
+	Icon          sql.NullString
+	Slug          string
+	Query         sql.NullString
+	DisplayOrder  int32
 }

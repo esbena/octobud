@@ -39,6 +39,10 @@
 	export let onDragOver: (e: DragEvent, viewId: string) => void;
 	export let onDrop: (e: DragEvent, viewId: string) => void;
 	export let onDragEnd: () => void;
+
+	let moreViewsExpanded = false;
+	$: visibleViews = sortedUserViews.filter((view) => view.showInSidebar !== false);
+	$: hiddenViews = sortedUserViews.filter((view) => view.showInSidebar === false);
 </script>
 
 <!-- Built-in views + Custom views -->
@@ -90,7 +94,7 @@
 		</div>
 	{:else}
 		<ul class="space-y-0 pt-1">
-			{#each sortedUserViews as view (view.id)}
+			{#each visibleViews as view (view.id)}
 				<ViewCard
 					{view}
 					selected={!isSettingsRoute && selectedViewId === normalizeViewId(view.id)}
@@ -107,6 +111,44 @@
 				/>
 			{/each}
 		</ul>
+		{#if hiddenViews.length > 0}
+			<button
+				type="button"
+				class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800/50 cursor-pointer"
+				aria-expanded={moreViewsExpanded}
+				on:click={() => (moreViewsExpanded = !moreViewsExpanded)}
+			>
+				<svg
+					class="h-3 w-3 transition-transform {moreViewsExpanded ? 'rotate-90' : ''}"
+					viewBox="0 0 12 12"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.5"
+					aria-hidden="true"
+				>
+					<path d="m4.5 3 3 3-3 3" />
+				</svg>
+				More views
+			</button>
+			{#if moreViewsExpanded}
+				<ul class="space-y-0">
+					{#each hiddenViews as view (view.id)}
+						<ViewCard
+							{view}
+							selected={!isSettingsRoute && selectedViewId === normalizeViewId(view.id)}
+							onSelect={onSelectView}
+							onEdit={onEditView}
+							{reorderMode}
+							{onDragStart}
+							{onDragOver}
+							{onDrop}
+							{onDragEnd}
+							isDraggedOver={draggedOverViewId === view.id}
+						/>
+					{/each}
+				</ul>
+			{/if}
+		{/if}
 	{/if}
 	<div class="mt-1 pl-1 flex items-center justify-between">
 		{#if userViews.length > 1}

@@ -98,6 +98,15 @@ When you open the view it starts scoped to those repositories. The selector stil
 - **Edit** - Right-click a view to edit
 - **Delete** - Right-click and select delete
 
+The **Show in sidebar** checkbox is enabled by default when creating a view. Turn it
+off to move the view into the collapsed **More views** section at the bottom of the
+views list. These views have no unread badges, and Octobud skips their independent
+badge queries, even when **More views** is expanded.
+
+This setting only affects sidebar presentation. The view keeps its saved query,
+URL, and references from other queries or linked rules. It is separate from the
+default landing-view setting.
+
 ### Views Based on Other Views
 
 Use `in:"View name"` to match another custom view's saved query. For example, keep a **Low priority** view for noise and define an actionable view as:

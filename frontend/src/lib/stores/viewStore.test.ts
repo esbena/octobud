@@ -49,6 +49,17 @@ describe("ViewStore", () => {
 	});
 
 	describe("built-in views", () => {
+		it("retains a hidden custom view as the selected view and default landing view", () => {
+			const view = createMockView({ showInSidebar: false, isDefault: true });
+			const store = createViewStore([view], [], view.id);
+			expect(get(store.views)).toEqual([view]);
+			expect(get(store.selectedView)).toEqual(view);
+			expect(get(store.defaultViewSlug)).toBe(view.slug);
+			expect(
+				get(store.builtInViewList).find((builtIn) => builtIn.slug === "inbox")?.isDefault
+			).toBe(false);
+		});
+
 		it("includes all built-in views", () => {
 			const store = createViewStore([], [], BUILT_IN_VIEWS.inbox.id);
 			const builtInViews = get(store.builtInViewList);

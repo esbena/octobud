@@ -299,16 +299,17 @@ func toDBTagAssignment(ta TagAssignment) db.TagAssignment {
 
 func toDBView(v View) db.View {
 	return db.View{
-		ID:           v.ID,
-		UserID:       v.UserID,
-		Name:         v.Name,
-		Description:  v.Description,
-		IsDefault:    toBool(v.IsDefault),
-		CreatedAt:    parseTime(v.CreatedAt),
-		Icon:         v.Icon,
-		Slug:         v.Slug,
-		Query:        v.Query,
-		DisplayOrder: int32(v.DisplayOrder),
+		ID:            v.ID,
+		UserID:        v.UserID,
+		Name:          v.Name,
+		Description:   v.Description,
+		IsDefault:     toBool(v.IsDefault),
+		ShowInSidebar: toBool(v.ShowInSidebar),
+		CreatedAt:     parseTime(v.CreatedAt),
+		Icon:          v.Icon,
+		Slug:          v.Slug,
+		Query:         v.Query,
+		DisplayOrder:  int32(v.DisplayOrder),
 	}
 }
 

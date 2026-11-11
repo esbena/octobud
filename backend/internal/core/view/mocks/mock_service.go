@@ -43,18 +43,18 @@ func (m *MockViewService) EXPECT() *MockViewServiceMockRecorder {
 }
 
 // CreateView mocks base method.
-func (m *MockViewService) CreateView(ctx context.Context, userID, name string, description, icon *string, isDefault *bool, queryStr string, repositoryIDs []int64) (models.View, error) {
+func (m *MockViewService) CreateView(ctx context.Context, userID, name string, description, icon *string, isDefault *bool, queryStr string, repositoryIDs []int64, showInSidebar *bool) (models.View, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateView", ctx, userID, name, description, icon, isDefault, queryStr, repositoryIDs)
+	ret := m.ctrl.Call(m, "CreateView", ctx, userID, name, description, icon, isDefault, queryStr, repositoryIDs, showInSidebar)
 	ret0, _ := ret[0].(models.View)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateView indicates an expected call of CreateView.
-func (mr *MockViewServiceMockRecorder) CreateView(ctx, userID, name, description, icon, isDefault, queryStr, repositoryIDs any) *gomock.Call {
+func (mr *MockViewServiceMockRecorder) CreateView(ctx, userID, name, description, icon, isDefault, queryStr, repositoryIDs, showInSidebar any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateView", reflect.TypeOf((*MockViewService)(nil).CreateView), ctx, userID, name, description, icon, isDefault, queryStr, repositoryIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateView", reflect.TypeOf((*MockViewService)(nil).CreateView), ctx, userID, name, description, icon, isDefault, queryStr, repositoryIDs, showInSidebar)
 }
 
 // DeleteView mocks base method.
@@ -133,16 +133,16 @@ func (mr *MockViewServiceMockRecorder) SetViewRepositoryDefault(ctx, userID, vie
 }
 
 // UpdateView mocks base method.
-func (m *MockViewService) UpdateView(ctx context.Context, userID, viewID string, name, description, icon *string, isDefault *bool, queryStr *string, repositoryIDs []int64) (models.View, error) {
+func (m *MockViewService) UpdateView(ctx context.Context, userID, viewID string, name, description, icon *string, isDefault *bool, queryStr *string, repositoryIDs []int64, showInSidebar *bool) (models.View, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateView", ctx, userID, viewID, name, description, icon, isDefault, queryStr, repositoryIDs)
+	ret := m.ctrl.Call(m, "UpdateView", ctx, userID, viewID, name, description, icon, isDefault, queryStr, repositoryIDs, showInSidebar)
 	ret0, _ := ret[0].(models.View)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateView indicates an expected call of UpdateView.
-func (mr *MockViewServiceMockRecorder) UpdateView(ctx, userID, viewID, name, description, icon, isDefault, queryStr, repositoryIDs any) *gomock.Call {
+func (mr *MockViewServiceMockRecorder) UpdateView(ctx, userID, viewID, name, description, icon, isDefault, queryStr, repositoryIDs, showInSidebar any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateView", reflect.TypeOf((*MockViewService)(nil).UpdateView), ctx, userID, viewID, name, description, icon, isDefault, queryStr, repositoryIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateView", reflect.TypeOf((*MockViewService)(nil).UpdateView), ctx, userID, viewID, name, description, icon, isDefault, queryStr, repositoryIDs, showInSidebar)
 }
