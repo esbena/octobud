@@ -168,6 +168,11 @@ func newClient(root, path string) *copilot.Client {
 	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
 		env = append(env, "COPILOT_CLI_PATH="+cliPath)
 	}
+	for _, name := range []string{"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "GH_CONFIG_DIR"} {
+		if value, ok := os.LookupEnv(name); ok {
+			env = append(env, name+"="+value)
+		}
+	}
 	return copilot.NewClient(&copilot.ClientOptions{
 		Connection: copilot.StdioConnection{
 			Path: path,
