@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { NotificationView } from "$lib/api/types";
 import ViewsSection from "./ViewsSection.svelte";
 import SidebarCollapsed from "./SidebarCollapsed.svelte";
+import SidebarHover from "./SidebarHover.svelte";
+
+vi.mock("svelte/transition", () => ({ fly: () => undefined }));
 
 const helper: NotificationView = {
 	id: "helper",
@@ -43,6 +46,41 @@ function sharedProps() {
 }
 
 describe("sidebar view visibility", () => {
+	it("keeps helper views behind More views in the hover-expanded sidebar", async () => {
+		const props = {
+			...sharedProps(),
+			userViews: [helper, visible, legacy],
+			reorderMode: false,
+			reordering: false,
+			draggedOverViewId: null,
+			onNewView: vi.fn(),
+			onEditView: vi.fn(),
+			onToggleReorderMode: vi.fn(),
+			onDragStart: vi.fn(),
+			onDragOver: vi.fn(),
+			onDrop: vi.fn(),
+			onDragEnd: vi.fn(),
+			onSelectTag: vi.fn(),
+			onToggleTagsCollapsed: vi.fn(),
+			onNewTag: vi.fn(),
+			onEditTag: vi.fn(),
+			onToggleTagReorderMode: vi.fn(),
+			onTagDragStart: vi.fn(),
+			onTagDragOver: vi.fn(),
+			onTagDrop: vi.fn(),
+			onTagDragEnd: vi.fn(),
+			onMouseEnter: vi.fn(),
+			onMouseLeave: vi.fn(),
+		};
+		render(SidebarHover, props);
+		expect(screen.queryByRole("button", { name: "Helper" })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Visible" })).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole("button", { name: "More views" }));
+		expect(screen.queryByLabelText("42 new notifications")).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByRole("button", { name: "Helper" }));
+		expect(props.onSelectView).toHaveBeenCalledWith("helper");
+	});
+
 	it("groups hidden views below the main list, with navigation and editing but no badges", async () => {
 		const props = {
 			...sharedProps(),
