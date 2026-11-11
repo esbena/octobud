@@ -3,6 +3,8 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/octobud-hq/octobud/backend/internal/core/copilotsettings"
 	"github.com/octobud-hq/octobud/backend/internal/db"
 	dbmocks "github.com/octobud-hq/octobud/backend/internal/db/mocks"
+	"github.com/octobud-hq/octobud/backend/internal/models"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -31,6 +34,25 @@ func configureBriefTestSettings(t *testing.T, h *Handler, enabled bool) *dbmocks
 		h.briefQueue.Close()
 	})
 	return store
+}
+
+func TestDisabledSettingsPreventBatchWork(t *testing.T) {
+	handler, _, _, auth := setupTestHandler(gomock.NewController(t))
+	handler.WithActivityBriefs(
+		briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
+			t.Fatal("disabled feature invoked model")
+			return nil, nil
+		}),
+	)
+	configureBriefTestSettings(t, handler, false)
+	auth.EXPECT().
+		GetUser(gomock.Any()).
+		Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).
+		AnyTimes()
+	response := httptest.NewRecorder()
+	handler.handleActivityBriefBatch(response, briefRequest(`{"query":"in:inbox","days":3}`))
+	require.Equal(t, http.StatusServiceUnavailable, response.Code)
+	require.Empty(t, handler.briefQueue.Entries("owner"))
 }
 
 func TestDisablingSettingsCancelsRunningQueueWork(t *testing.T) {

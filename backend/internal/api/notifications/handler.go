@@ -84,6 +84,9 @@ func (h *Handler) Register(r chi.Router) {
 		r.Get("/", h.handleListNotifications)
 		r.Get("/poll", h.handlePollNotifications) // Poll endpoint for service worker polling
 		r.Get("/repositories", h.handleListRepositoryCounts)
+		r.Get("/activity-briefs", h.handleActivityBriefStatus)
+		r.Post("/activity-briefs", h.handleActivityBriefBatch)
+		r.Post("/activity-briefs/stop", h.handleStopActivityBriefs)
 		r.Get("/{githubID}", h.handleGetNotification)
 		r.Get("/{githubID}/timeline", h.handleGetNotificationTimeline)
 		r.Post("/{githubID}/activity-brief", h.handleActivityBrief)
