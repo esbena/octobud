@@ -32,6 +32,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 		{ id: "notifications", label: "Notifications", icon: "bell" },
 		{ id: "copilot", label: "Copilot", icon: "copilot" },
 		{ id: "rules", label: "Rules", icon: "bolt" },
+		{ id: "annotations", label: "Annotations", icon: "annotation" },
 		{ id: "data", label: "Data", icon: "database" },
 		{ id: "updates", label: "Updates", icon: "arrow-down" },
 		{ id: "debugging", label: "Debugging", icon: "bug" },
@@ -107,6 +108,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 							stroke-linejoin="round"
 						>
 							<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+						</svg>
+					{:else if section.icon === "annotation"}
+						<svg
+							class="w-4 h-4 flex-shrink-0"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path
+								d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"
+							/>
+							<path d="M8 9h8M8 13h5" />
 						</svg>
 					{:else if section.icon === "database"}
 						<svg

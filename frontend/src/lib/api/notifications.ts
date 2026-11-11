@@ -95,6 +95,8 @@ const fromBackendNotification = (notification: BackendNotificationResponse): Not
 
 	return {
 		id: String(notification.id),
+		raw: notification,
+		payload: notification.payload,
 		githubId: notification.githubId,
 		repoFullName,
 		subjectTitle: notification.subjectTitle,
@@ -253,6 +255,7 @@ export async function fetchNotifications(
 	const searchParams = new URLSearchParams();
 	searchParams.set("page", String(page));
 	searchParams.set("pageSize", String(pageSize));
+	searchParams.set("includeSubject", "true");
 	if (repositoryIds.length > 0) {
 		searchParams.set("repos", repositoryIds.join(","));
 	}

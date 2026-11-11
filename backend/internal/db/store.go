@@ -26,6 +26,11 @@ import (
 // This interface allows us to mock database operations in unit tests.
 // All methods that access user data require a userID parameter for multi-user support.
 type Store interface {
+	ListAnnotations(ctx context.Context, userID string) ([]Annotation, error)
+	CreateAnnotation(ctx context.Context, userID string, annotation Annotation) (Annotation, error)
+	UpdateAnnotation(ctx context.Context, userID string, annotation Annotation) (Annotation, error)
+	DeleteAnnotation(ctx context.Context, userID, id string) error
+
 	// Notification methods
 	GetNotificationByGithubID(ctx context.Context, userID, githubID string) (Notification, error)
 	GetNotificationByID(ctx context.Context, userID string, id int64) (Notification, error)

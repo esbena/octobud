@@ -19,6 +19,8 @@
 	import { getContext } from "svelte";
 	import type { NotificationPageController } from "$lib/state/types";
 	import type { Notification } from "$lib/api/types";
+	import { fetchAnnotations, type Annotation } from "$lib/api/annotations";
+	import { normalizeViewId } from "$lib/state/types";
 
 	import { onMount } from "svelte";
 
@@ -39,6 +41,32 @@
 
 	const pageController = getContext<NotificationPageController>("notificationPageController");
 	const { hasRepositoryFilter } = pageController.derived;
+	const { selectedViewId } = pageController.stores;
+	let annotations: Annotation[] = [];
+	let annotationError = "";
+	let annotationsLoading = true;
+	$: activeAnnotations = annotations.filter(
+		(annotation) =>
+			annotation.enabled &&
+			(annotation.viewIds.length === 0 ||
+				annotation.viewIds.some((id) => normalizeViewId(id) === normalizeViewId($selectedViewId)))
+	);
+	onMount(() => {
+		let cancelled = false;
+		fetchAnnotations()
+			.then((items) => {
+				if (!cancelled) annotations = items;
+			})
+			.catch((cause) => {
+				if (!cancelled) annotationError = String(cause);
+			})
+			.finally(() => {
+				if (!cancelled) annotationsLoading = false;
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	// Scroll position management
 	let scrollContainer: HTMLDivElement | null = null;
@@ -80,6 +108,13 @@
 		? 'border-t border-gray-200 dark:border-gray-800 pt-4'
 		: ''}"
 >
+	{#if annotationsLoading}
+		<p role="status" class="px-2 text-xs text-gray-500">Loading annotations...</p>
+	{:else if annotationError}
+		<p role="alert" class="px-2 text-xs text-red-600">
+			Failed to load annotations: {annotationError}
+		</p>
+	{/if}
 	{#if !apiError || $hasRepositoryFilter}
 		<!-- Repository selector + page range. Lives outside the scroll container so it (and its
 		     dropdown) stay put while the list scrolls. Stays visible under an inline query error
@@ -162,6 +197,7 @@
 						detailNotificationId === (notification.githubId ?? notification.id)}
 					<NotificationRow
 						{notification}
+						annotations={activeAnnotations}
 						{selectionEnabled}
 						selectionDisabled={individualSelectionDisabled}
 						{selected}

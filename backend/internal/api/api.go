@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
+	"github.com/octobud-hq/octobud/backend/internal/api/annotations"
 	"github.com/octobud-hq/octobud/backend/internal/api/diagnostics"
 	"github.com/octobud-hq/octobud/backend/internal/api/navigation"
 	"github.com/octobud-hq/octobud/backend/internal/api/notifications"
@@ -62,6 +63,7 @@ type Handler struct {
 	tagsH          *tags.Handler
 	viewsH         *views.Handler
 	rulesH         *rules.Handler
+	annotationsH   *annotations.Handler
 	repositoriesH  *repositories.Handler
 	userH          *apiuser.Handler
 	oauthH         *oauth.Handler
@@ -179,6 +181,7 @@ func NewHandler(store db.Store, opts ...HandlerOption) *Handler {
 	h.tagsH = tags.New(logger, tagSvc, authService)
 	h.viewsH = views.New(logger, viewSvc, authService)
 	h.rulesH = rules.NewWithScheduler(logger, ruleSvc, viewSvc, h.scheduler, authService)
+	h.annotationsH = annotations.New(logger, store, authService)
 	h.repositoriesH = repositories.New(logger, repositorySvc, authService)
 
 	// Create user handler
@@ -229,6 +232,7 @@ func (h *Handler) Register(r chi.Router) {
 	h.tagsH.Register(r)
 	h.viewsH.Register(r)
 	h.rulesH.Register(r)
+	h.annotationsH.Register(r)
 	h.repositoriesH.Register(r)
 }
 
