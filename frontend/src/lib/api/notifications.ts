@@ -318,6 +318,10 @@ export async function fetchNotifications(
 	const notifications = (payload.notifications ?? []).map(fromBackendNotification);
 
 	return {
+		queryScope:
+			filters.query !== undefined
+				? { query: filters.query, repositoryIds: [...repositoryIds] }
+				: undefined,
 		items: notifications,
 		total: payload.total ?? notifications.length,
 		pageSize: payload.pageSize ?? pageSize,

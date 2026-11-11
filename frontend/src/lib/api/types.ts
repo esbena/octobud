@@ -209,6 +209,7 @@ export interface NotificationFilters {
 }
 
 export interface NotificationPage {
+	queryScope?: { query: string; repositoryIds: number[] };
 	items: Notification[];
 	total: number;
 	pageSize: number;

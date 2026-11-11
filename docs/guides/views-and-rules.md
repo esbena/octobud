@@ -231,6 +231,77 @@ Rules are processed in order from top to bottom. You can reorder rules by draggi
 
 **Tip:** Put more specific rules before general ones.
 
+## Activity highlights
+
+**Summarize 10 more** queues up to ten missing summaries from the top of the
+current view, across pages, using its submitted query and repository filters.
+Cached and pending items are skipped; repeated clicks extend the queue without
+duplicates. Browsing, scrolling, changing the lookback or polling never starts
+generation. Per-view automatic generation is not enabled.
+
+**Max lookback** offers 1, 3, 7, 14 or 30 days, initially using the configured
+default (3 days unless changed). This is a maximum
+activity window, not activity since an archive: archive timestamps are not yet
+recorded. Results show inferred **For you** requests first and quieter **Other
+activity** below. Empty groups are omitted; no **For you** section is not an
+all-clear. Highlights describe new developments, not the original thread.
+
+In **Settings → Copilot**, enable Copilot and then **Activity highlights**.
+Both switches are off by default and persisted in the local database; no
+Octobud feature environment variable is needed. The feature has its own default
+lookback (3 days) and model (`gpt-6-luna`), used for new summaries. Enabling or
+saving settings never starts generation. Disabling either switch cancels queued
+and running summaries while preserving the other preferences.
+Until enabled, views show only a setup link rather than inactive generation
+controls. Once enabled, the compact highlights toolbar links back to these settings.
+
+Generation uses the [local Copilot SDK runtime](../concepts/copilot-runtime.md).
+Copilot authentication is separate from Octobud's notifications token; the
+settings page explains local login and standard token overrides.
+
+The backend runs up to ten jobs concurrently. **Stop** cancels the user's
+waiting and running jobs, including their owned SDK runtimes. Errors are
+displayed, not automatically retried; another explicit batch action can retry
+failed items. The server-memory cache is shared across views and isolated by
+user, notification version and lookback. Completed entries expire after one
+hour, at most 500 entries are retained, and at most 100 jobs may be pending.
+Restarting clears the cache. A full queue returns an error or partial-admission
+notice. Neither generation nor caching changes notification archive/read state.
+
+The prompt classifies recipients, ranks and limits developments, then summarizes
+at most three bullets with usernames and new-event citations. Other reviewers'
+feedback to the author is background when the reader is a fellow reviewer.
+Copilot review bodies are withheld; human replies remain eligible. A generic
+Copilot-notes mention is allowed only when it is the sole substantive change.
+
+Issues/PRs use GitHub timelines and PR inline comments; discussions include
+available replies. Each source is bounded to ten pages of 100 entries, with
+coverage warnings. New replies under old parents are checked independently.
+Current edited bodies are not edit diffs, and commit authored dates are not push
+dates. Exact body/code deltas and deleted history cannot be reconstructed without
+historical snapshots.
+In the detail view, expand **Window and coverage** for the cutoff and coverage
+notes; recipient labels are inferred rather than assurances that no action is needed.
+
+API:
+
+- `GET /api/user/copilot-settings` and `PUT /api/user/copilot-settings` read and
+  save the master switch and feature preferences without inference.
+- `POST /api/notifications/activity-briefs` accepts `query`, `repositoryIds`,
+  and `days`; the server selects at most ten missing supported notifications.
+- `GET /api/notifications/activity-briefs` reads authenticated cache/queue status
+  without GitHub or model calls.
+- `POST /api/notifications/activity-briefs/stop` stops that user's pending work.
+- `POST /api/notifications/{githubID}/activity-brief` accepts an explicit RFC3339
+  `since` and optional `summarize` boolean. Without summarization it returns
+  deterministic event kinds and partitioned evidence without inference.
+
+Each inference uses only the terminal `submit_brief` tool, with no notification
+actions, filesystem or MCP tools. Jobs have a two-minute total deadline;
+inference is bounded to 90 seconds, 2 MiB input, 512 KiB assistant text and eight
+submission attempts. Invalid/unsupported requests return 400, unavailable
+configuration returns 503, and GitHub/runtime failures surface explicitly.
+
 ## Tags
 
 Tags help you categorize and organize notifications.
