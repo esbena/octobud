@@ -20,6 +20,7 @@ const NOTIFICATIONS_ENABLED_KEY = "octobud:notifications:enabled";
 const FAVICON_BADGE_ENABLED_KEY = "octobud:notifications:faviconBadge";
 const TIMELINE_AUTO_SCROLL_KEY = "octobud:timeline:autoScroll";
 const HOVER_ACTIONS_ENABLED_KEY = "octobud:notifications:hoverActions";
+const SHOW_TOTAL_COUNTS_KEY = "octobud:sidebar:showTotalCounts";
 
 /**
  * Notification Settings Store
@@ -52,6 +53,9 @@ export function createNotificationSettingsStore() {
 	const faviconBadgeEnabled = writable<boolean>(storedFaviconBadgeEnabled);
 	const timelineAutoScroll = writable<boolean>(storedTimelineAutoScroll);
 	const hoverActionsEnabled = writable<boolean>(storedHoverActionsEnabled);
+	const showTotalCounts = writable(
+		typeof window !== "undefined" && localStorage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true"
+	);
 
 	// Persist to localStorage and notify service worker
 	if (browser) {
@@ -77,6 +81,9 @@ export function createNotificationSettingsStore() {
 		hoverActionsEnabled.subscribe((value) => {
 			localStorage.setItem(HOVER_ACTIONS_ENABLED_KEY, value.toString());
 		});
+		showTotalCounts.subscribe((value) => {
+			localStorage.setItem(SHOW_TOTAL_COUNTS_KEY, value.toString());
+		});
 	}
 
 	return {
@@ -84,18 +91,21 @@ export function createNotificationSettingsStore() {
 		faviconBadgeEnabled: faviconBadgeEnabled as Writable<boolean>,
 		timelineAutoScroll: timelineAutoScroll as Writable<boolean>,
 		hoverActionsEnabled: hoverActionsEnabled as Writable<boolean>,
+		showTotalCounts,
 		syncFromStorage: () => {
 			if (typeof window === "undefined") return;
 			const newEnabled = localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false";
 			const newFaviconBadge = localStorage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false";
 			const newAutoScroll = localStorage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true";
 			const newHoverActions = localStorage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false";
+			const newShowTotalCounts = localStorage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true";
 			if (newEnabled !== get(notificationsEnabled)) notificationsEnabled.set(newEnabled);
 			if (newFaviconBadge !== get(faviconBadgeEnabled)) faviconBadgeEnabled.set(newFaviconBadge);
 			if (newAutoScroll !== get(timelineAutoScroll)) timelineAutoScroll.set(newAutoScroll);
 			if (newHoverActions !== get(hoverActionsEnabled)) {
 				hoverActionsEnabled.set(newHoverActions);
 			}
+			if (newShowTotalCounts !== get(showTotalCounts)) showTotalCounts.set(newShowTotalCounts);
 		},
 		setEnabled: (enabled: boolean) => {
 			notificationsEnabled.set(enabled);
@@ -108,6 +118,9 @@ export function createNotificationSettingsStore() {
 		},
 		setHoverActionsEnabled: (enabled: boolean) => {
 			hoverActionsEnabled.set(enabled);
+		},
+		setShowTotalCounts: (enabled: boolean) => {
+			showTotalCounts.set(enabled);
 		},
 		toggle: () => {
 			notificationsEnabled.update((enabled) => !enabled);

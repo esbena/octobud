@@ -15,6 +15,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
+vi.mock("$app/environment", () => ({ browser: true }));
 import {
 	createNotificationSettingsStore,
 	isNotificationEnabled,
@@ -34,6 +35,27 @@ describe("NotificationSettings Store", () => {
 	});
 
 	describe("createNotificationSettingsStore", () => {
+		it("keeps total counts opt-in and persists both enabled and disabled states", () => {
+			const store = createNotificationSettingsStore();
+			expect(get(store.showTotalCounts)).toBe(false);
+			store.setShowTotalCounts(true);
+			expect(localStorage.getItem("octobud:sidebar:showTotalCounts")).toBe("true");
+			expect(get(createNotificationSettingsStore().showTotalCounts)).toBe(true);
+			store.setShowTotalCounts(false);
+			expect(localStorage.getItem("octobud:sidebar:showTotalCounts")).toBe("false");
+			expect(get(createNotificationSettingsStore().showTotalCounts)).toBe(false);
+		});
+
+		it("synchronizes total-count preferences from storage", () => {
+			const store = createNotificationSettingsStore();
+			localStorage.setItem("octobud:sidebar:showTotalCounts", "true");
+			store.syncFromStorage();
+			expect(get(store.showTotalCounts)).toBe(true);
+			localStorage.setItem("octobud:sidebar:showTotalCounts", "false");
+			store.syncFromStorage();
+			expect(get(store.showTotalCounts)).toBe(false);
+		});
+
 		it("initializes with default values when localStorage is empty", () => {
 			const store = createNotificationSettingsStore();
 
