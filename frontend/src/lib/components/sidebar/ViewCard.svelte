@@ -21,6 +21,7 @@
 	export let view: NotificationView;
 	export let selected = false;
 	export let showActions = true;
+	export let showCounts = true;
 	export let count: number | undefined = undefined;
 	export let reorderMode = false;
 	export let onSelect: (slug: string) => void | Promise<void> = () => {};
@@ -220,7 +221,9 @@
 				class:min-w-6={showActions && !view.isDefault}
 				class:invisible={showActions && (hovered || actionsOpen) && !view.isDefault}
 			>
-				<NotificationCounts unread={count} total={view.totalCount} {selected} />
+				{#if showCounts}
+					<NotificationCounts unread={count} total={view.totalCount} {selected} />
+				{/if}
 			</div>
 		{/if}
 		{#if showActions && (hovered || actionsOpen) && !view.isDefault && !reorderMode}
