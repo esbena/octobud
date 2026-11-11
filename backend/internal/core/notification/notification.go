@@ -65,7 +65,8 @@ func (s *Service) ListNotifications(
 	limit, offset, page, pageSize := normalizedPagination(opts)
 
 	// Use unified BuildQuery which applies business rules based on query content
-	dbQuery, err := query.BuildQueryWithOptions(opts.Query, limit, offset, opts.IncludeSubject)
+	compiler := query.NewViewCompiler(ctx, userID, s.queries)
+	dbQuery, err := compiler.BuildQuery(opts.Query, limit, offset, opts.IncludeSubject)
 
 	if err != nil {
 		// Wrap query errors in a high-level error type
@@ -87,10 +88,9 @@ func (s *Service) ListNotifications(
 
 	// Create evaluator once for all notifications (optimization)
 	// Always create evaluator, even for empty queries, so action hints work correctly
-	evaluator, err := query.NewEvaluator(opts.Query)
+	evaluator, err := compiler.NewEvaluator(opts.Query)
 	if err != nil {
-		// Continue with nil evaluator - hints will be conservative (empty)
-		evaluator = nil
+		return models.ListDetailsResult{}, errors.Join(ErrInvalidQuery, err)
 	}
 
 	// Build responses for each notification
@@ -129,7 +129,7 @@ func (s *Service) ListPollNotifications(
 	limit, offset, page, pageSize := normalizedPagination(opts)
 
 	// Use unified BuildQuery which applies business rules based on query content
-	dbQuery, err := query.BuildQueryWithOptions(
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).BuildQuery(
 		opts.Query,
 		limit,
 		offset,
@@ -192,7 +192,8 @@ func (s *Service) ListNotificationsFromQueryString(
 	repositoryIDs []int64,
 	limit int32,
 ) ([]db.Notification, error) {
-	dbQuery, err := query.BuildQuery(queryStr, limit, 0)
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).
+		BuildQuery(queryStr, limit, 0, true)
 	if err != nil {
 		return nil, errors.Join(ErrFailedToBuildQuery, err)
 	}
@@ -216,7 +217,7 @@ func (s *Service) ListRepositoryCounts(
 	userID, queryStr string,
 	includeIDs []int64,
 ) ([]models.RepositoryCount, error) {
-	dbQuery, err := query.BuildQueryWithOptions(queryStr, 0, 0, false)
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).BuildQuery(queryStr, 0, 0, false)
 	if err != nil {
 		return nil, errors.Join(ErrInvalidQuery, err)
 	}
@@ -325,10 +326,9 @@ func (s *Service) GetNotificationWithDetails(
 	}
 
 	// Always create evaluator, even for empty queries, so action hints work correctly
-	evaluator, err := query.NewEvaluator(queryStr)
+	evaluator, err := query.NewViewCompiler(ctx, userID, s.queries).NewEvaluator(queryStr)
 	if err != nil {
-		// Continue with nil evaluator - hints will be conservative (empty)
-		evaluator = nil
+		return models.Notification{}, errors.Join(ErrInvalidQuery, err)
 	}
 
 	// Build response (no repoMap needed for single notification)

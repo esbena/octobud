@@ -139,5 +139,5 @@ func wouldDismissOnAction(
 	}
 
 	// Check if the modified notification still matches the query using unified Matches
-	return !evaluator.Matches(&clone, repo)
+	return !evaluator.CouldMatch(&clone, repo)
 }

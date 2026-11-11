@@ -28,7 +28,8 @@ var (
 
 // Validator validates query AST nodes
 type Validator struct {
-	errors []string
+	errors              []string
+	AllowViewReferences bool
 }
 
 // NewValidator creates a new validator
@@ -107,17 +108,9 @@ func (v *Validator) validateTerm(node *Term) {
 
 // validateInValues validates values for the in: operator
 func (v *Validator) validateInValues(values []string) {
-	validValues := map[string]bool{
-		"inbox":    true,
-		"archive":  true,
-		"snoozed":  true,
-		"filtered": true,
-		"anywhere": true,
-	}
-
 	for _, value := range values {
 		value = strings.ToLower(strings.TrimSpace(value))
-		if !validValues[value] {
+		if !IsBuiltinInValue(value) && !v.AllowViewReferences {
 			v.errors = append(
 				v.errors,
 				fmt.Sprintf(
@@ -126,6 +119,16 @@ func (v *Validator) validateInValues(values []string) {
 				),
 			)
 		}
+	}
+}
+
+// IsBuiltinInValue distinguishes lifecycle targets from named view references.
+func IsBuiltinInValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "inbox", "archive", "snoozed", "filtered", "anywhere":
+		return true
+	default:
+		return false
 	}
 }
 

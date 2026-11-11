@@ -774,7 +774,7 @@ func (s *Store) RemoveTagAssignment(
 
 // GetView gets a view by ID
 func (s *Store) GetView(ctx context.Context, userID, id string) (db.View, error) {
-	v, err := db.RetryOnBusy(ctx, func() (View, error) {
+	v, err := retryViewOperation(ctx, s, func() (View, error) {
 		return s.q.GetView(ctx, GetViewParams{
 			UserID: userID,
 			ID:     id,
@@ -868,7 +868,7 @@ func (s *Store) GetViewRepositoryDefault(
 
 // ListViews lists all views
 func (s *Store) ListViews(ctx context.Context, userID string) ([]db.View, error) {
-	views, err := db.RetryOnBusy(ctx, func() ([]View, error) {
+	views, err := retryViewOperation(ctx, s, func() ([]View, error) {
 		return s.q.ListViews(ctx, userID)
 	})
 	if err != nil {
@@ -900,16 +900,17 @@ func (s *Store) CreateView(
 		isDefault = v
 	}
 
-	v, err := db.RetryOnBusy(ctx, func() (View, error) {
+	v, err := retryViewOperation(ctx, s, func() (View, error) {
 		return s.q.CreateView(ctx, CreateViewParams{
-			UserID:       userID,
-			Name:         arg.Name,
-			Slug:         arg.Slug,
-			Description:  arg.Description,
-			IsDefault:    isDefault,
-			Icon:         arg.Icon,
-			Query:        arg.Query,
-			DisplayOrder: 0,
+			UserID:        userID,
+			Name:          arg.Name,
+			Slug:          arg.Slug,
+			Description:   arg.Description,
+			IsDefault:     isDefault,
+			ShowInSidebar: fromNullBool(arg.ShowInSidebar),
+			Icon:          arg.Icon,
+			Query:         arg.Query,
+			DisplayOrder:  0,
 		})
 	})
 	if err != nil {
@@ -918,39 +919,51 @@ func (s *Store) CreateView(
 	return toDBView(v), nil
 }
 
-// UpdateView updates a view
+func retryViewOperation[T any](
+	ctx context.Context,
+	store *Store,
+	operation func() (T, error),
+) (T, error) {
+	if _, inTransaction := store.q.db.(*sql.Tx); inTransaction {
+		// A stale SQLite snapshot requires restarting the whole transaction,
+		// not retrying statements against the same snapshot.
+		return operation()
+	}
+	return db.RetryOnBusy(ctx, operation)
+}
+
+// WithViewTransaction keeps dependency checks and view writes in the same snapshot.
+func (s *Store) WithViewTransaction(ctx context.Context, fn func(db.ViewStore) error) error {
+	return db.RetryVoidOnBusy(ctx, func() error {
+		tx, err := s.dbConn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback() //nolint:errcheck
+		if err := fn(&Store{q: s.q.WithTx(tx)}); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+}
+
+// UpdateView updates a view.
 func (s *Store) UpdateView(
 	ctx context.Context,
 	userID string,
 	arg db.UpdateViewParams,
 ) (db.View, error) {
-	// SQLite UpdateView expects non-nullable strings for name and slug
-	name := ""
-	if arg.Name.Valid {
-		name = arg.Name.String
-	}
-	slug := ""
-	if arg.Slug.Valid {
-		slug = arg.Slug.String
-	}
-
-	var isDefault int64
-	if arg.IsDefault.Valid {
-		if arg.IsDefault.Bool {
-			isDefault = 1
-		}
-	}
-
-	v, err := db.RetryOnBusy(ctx, func() (View, error) {
+	v, err := retryViewOperation(ctx, s, func() (View, error) {
 		return s.q.UpdateView(ctx, UpdateViewParams{
-			UserID:      userID,
-			ID:          arg.ID,
-			Name:        name,
-			Slug:        slug,
-			Description: arg.Description,
-			Icon:        arg.Icon,
-			Query:       arg.Query,
-			IsDefault:   isDefault,
+			UserID:        userID,
+			ID:            arg.ID,
+			Name:          arg.Name,
+			Slug:          arg.Slug,
+			Description:   arg.Description,
+			Icon:          arg.Icon,
+			Query:         arg.Query,
+			IsDefault:     fromNullBool(arg.IsDefault),
+			ShowInSidebar: fromNullBool(arg.ShowInSidebar),
 		})
 	})
 	if err != nil {
@@ -961,7 +974,7 @@ func (s *Store) UpdateView(
 
 // DeleteView deletes a view
 func (s *Store) DeleteView(ctx context.Context, userID, id string) (int64, error) {
-	return db.RetryOnBusy(ctx, func() (int64, error) {
+	return retryViewOperation(ctx, s, func() (int64, error) {
 		return s.q.DeleteView(ctx, DeleteViewParams{
 			UserID: userID,
 			ID:     id,
@@ -990,7 +1003,7 @@ func (s *Store) GetRulesByViewID(
 	userID string,
 	viewID sql.NullString,
 ) ([]db.Rule, error) {
-	rules, err := db.RetryOnBusy(ctx, func() ([]Rule, error) {
+	rules, err := retryViewOperation(ctx, s, func() ([]Rule, error) {
 		return s.q.GetRulesByViewID(ctx, GetRulesByViewIDParams{
 			UserID: userID,
 			ViewID: viewID,

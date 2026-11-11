@@ -120,7 +120,13 @@ func (rm *RuleMatcher) checkRuleMatch(
 	}
 
 	// Parse and build the query
-	dbQuery, err := query.BuildQuery(queryStr, 1, 0)
+	var dbQuery db.NotificationQuery
+	var err error
+	if rule.ViewID.Valid {
+		dbQuery, err = query.NewViewCompiler(ctx, userID, rm.store).BuildQuery(queryStr, 1, 0, true)
+	} else {
+		dbQuery, err = query.BuildQuery(queryStr, 1, 0)
+	}
 	if err != nil {
 		return false, fmt.Errorf("failed to build query: %w", err)
 	}

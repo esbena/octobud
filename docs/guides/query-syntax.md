@@ -2,7 +2,7 @@
 
 Octobud uses a query language to filter notifications. You can use queries in views, rules, and the search bar.
 
-**Note:** All search values use **contains matching** (not exact). For example, `repo:traefik` matches `traefik/traefik` or `traefik/other`.
+**Note:** Text search values use **contains matching**. For example, `repo:traefik` matches `traefik/traefik` or `traefik/other`. Named `in:` targets instead identify a saved view by its full name.
 
 ## Basic Syntax
 
@@ -101,6 +101,20 @@ Combine all operators for sophisticated filtering:
 | `in:anywhere` | All notifications (no location filter) |
 
 **Note:** Use `in:inbox,filtered` (equivalent to `in:inbox OR in:filtered`) to include notifications that have skipped the inbox due to rule automation.
+
+In views and searches, `in:` also accepts a custom view's full name:
+
+```
+in:inbox,filtered -in:"Low priority"
+```
+
+This includes active notifications except those matching the saved **Low priority** query. Names are matched case-insensitively, not by substring; quote names containing spaces or punctuation. Built-in targets keep their existing meaning.
+
+Membership uses the referenced view's current saved query and its lifecycle defaults, regardless of pagination, unread badges, or the repository selection in the UI. References can be nested. Missing views and circular references are rejected.
+
+Renaming a view updates references in other saved view queries. A view cannot be deleted while another view references it. Unsaved searches and external query strings are not rewritten.
+
+Rules with their own queries accept only the built-in `in:` targets. Existing view-linked rules remain a separate feature.
 
 ### Type Filters (`type:`)
 
@@ -298,5 +312,4 @@ NOT (author:bot OR author:dependabot)
 3. **Try Negation** - Sometimes it's easier to exclude what you don't want
 4. **Combine with Rules** - Use queries in rules to auto-organize notifications
 5. **Review Filtered** - Periodically check `in:filtered` to ensure rules aren't hiding important notifications
-6. **Contains Matching** - All search values use contains matching, not exact matching
-
+6. **Contains Matching** - Text searches use contains matching; named `in:` targets use the full view name

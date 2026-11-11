@@ -194,16 +194,17 @@ type User struct {
 }
 
 type View struct {
-	ID           string
-	UserID       string
-	Name         string
-	Description  sql.NullString
-	IsDefault    int64
-	CreatedAt    string
-	Icon         sql.NullString
-	Slug         string
-	Query        sql.NullString
-	DisplayOrder int64
+	ID            string
+	UserID        string
+	Name          string
+	Description   sql.NullString
+	IsDefault     int64
+	CreatedAt     string
+	Icon          sql.NullString
+	Slug          string
+	Query         sql.NullString
+	DisplayOrder  int64
+	ShowInSidebar int64
 }
 
 type ViewRepositoryDefault struct {

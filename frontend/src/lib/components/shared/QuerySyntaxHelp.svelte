@@ -160,7 +160,10 @@
 							<code class="text-indigo-600 dark:text-indigo-300">archive</code>,
 							<code class="text-indigo-600 dark:text-indigo-300">snoozed</code>,
 							<code class="text-indigo-600 dark:text-indigo-300">filtered</code>,
-							<code class="text-indigo-600 dark:text-indigo-300">anywhere</code>
+							<code class="text-indigo-600 dark:text-indigo-300">anywhere</code>, or a saved view's
+							full name, such as
+							<code class="text-indigo-600 dark:text-indigo-300">"Low priority"</code>. Named views
+							are available in views and searches, not rules' own queries.
 						</td>
 					</tr>
 					<tr class="bg-gray-50/30 dark:bg-gray-800/30">

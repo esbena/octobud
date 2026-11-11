@@ -36,6 +36,10 @@ type Node = parse.Node
 // ParseAndValidate parses a query string and validates it
 // Returns the AST node if successful
 func ParseAndValidate(queryStr string) (Node, error) {
+	return parseAndValidate(queryStr, false)
+}
+
+func parseAndValidate(queryStr string, allowViewReferences bool) (Node, error) {
 	if queryStr == "" {
 		return nil, nil
 	}
@@ -53,6 +57,7 @@ func ParseAndValidate(queryStr string) (Node, error) {
 	}
 
 	validator := parse.NewValidator()
+	validator.AllowViewReferences = allowViewReferences
 	if err := validator.Validate(ast); err != nil {
 		return nil, errors.Join(parse.ErrValidationFailed, err)
 	}
@@ -74,12 +79,22 @@ func BuildQueryWithOptions(
 	limit, offset int32,
 	includeSubject bool,
 ) (db.NotificationQuery, error) {
-	ast, err := ParseAndValidate(queryStr)
+	return buildQuery(queryStr, limit, offset, includeSubject, nil)
+}
+
+func buildQuery(
+	queryStr string,
+	limit, offset int32,
+	includeSubject bool,
+	resolveView func(string) (db.NotificationQuery, error),
+) (db.NotificationQuery, error) {
+	ast, err := parseAndValidate(queryStr, resolveView != nil)
 	if err != nil {
 		return db.NotificationQuery{}, err
 	}
 
 	builder := sql.NewBuilder()
+	builder.ResolveView = resolveView
 	query, err := builder.Build(ast)
 	if err != nil {
 		return db.NotificationQuery{}, errors.Join(ErrSQLGenerationFailed, err)

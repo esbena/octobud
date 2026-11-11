@@ -38,6 +38,10 @@
 	export let onSelectTag: (tagId: string) => void;
 	export let onToggleTagsCollapsed: () => void;
 
+	let moreViewsExpanded = false;
+	$: visibleViews = sortedUserViews.filter((view) => view.showInSidebar !== false);
+	$: hiddenViews = sortedUserViews.filter((view) => view.showInSidebar === false);
+
 	// Tag icon (from label_outline.svg)
 	const tagIconPath =
 		"M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16zM16 17H5V7h11l3.55 5L16 17z";
@@ -117,7 +121,7 @@
 
 		{#if !viewsCollapsed}
 			<ul class="space-y-1 pt-1">
-				{#each sortedUserViews as view (view.id)}
+				{#each visibleViews as view (view.id)}
 					{@const displayIcon = normalizeViewIcon(view.icon)}
 					<li>
 						<button
@@ -145,6 +149,42 @@
 					</li>
 				{/each}
 			</ul>
+			{#if hiddenViews.length > 0}
+				<button
+					type="button"
+					class="flex h-9 w-9 items-center justify-center rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800/50 cursor-pointer"
+					aria-label="More views"
+					title="More views"
+					aria-expanded={moreViewsExpanded}
+					on:click={() => (moreViewsExpanded = !moreViewsExpanded)}
+				>
+					<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+						<circle cx="5" cy="12" r="2" />
+						<circle cx="12" cy="12" r="2" />
+						<circle cx="19" cy="12" r="2" />
+					</svg>
+				</button>
+				{#if moreViewsExpanded}
+					<ul class="space-y-1">
+						{#each hiddenViews as view (view.id)}
+							<li>
+								<button
+									type="button"
+									class="flex h-9 w-9 items-center justify-center rounded-xl text-base transition {!isSettingsRoute &&
+									selectedViewId === normalizeViewId(view.id)
+										? 'bg-indigo-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
+										: 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800/50'}"
+									on:click={() => onSelectView(view.slug)}
+									title={view.name}
+									aria-label={view.name}
+								>
+									{normalizeViewIcon(view.icon)}
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{/if}
 			<!-- Spacer to match the Reorder/Add buttons height in expanded view -->
 			<div class="mt-1 pl-1 pt-1 pb-6 flex items-center justify-center" aria-hidden="true">
 				<svg

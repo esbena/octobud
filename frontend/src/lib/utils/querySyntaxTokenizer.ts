@@ -98,9 +98,17 @@ export function tokenizeForSyntax(input: string): SyntaxToken[] {
 				});
 				tokens.push({ type: "colon", text: ":" });
 				i++;
-				// Now capture the value (until whitespace, parentheses, or end)
+				// Whitespace and parentheses only delimit values outside quotes.
 				const valueStart = i;
-				while (i < input.length && !/[\s()]/.test(input[i])) {
+				let inQuotes = false;
+				while (i < input.length) {
+					if (input[i] === '"') {
+						inQuotes = !inQuotes;
+					} else if (inQuotes && input[i] === "\\" && i + 1 < input.length) {
+						i++;
+					} else if (!inQuotes && /[\s()]/.test(input[i])) {
+						break;
+					}
 					i++;
 				}
 				if (i > valueStart) {

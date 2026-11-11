@@ -62,9 +62,9 @@ func (h *ApplyRuleHandler) Handle(ctx context.Context, userID, ruleID string) er
 
 	if rule.ViewID.Valid {
 		// Rule is linked to a view - resolve the view's query dynamically
-		view, err := h.store.GetView(ctx, userID, rule.ViewID.String)
-		if err != nil {
-			return fmt.Errorf("failed to get view for rule: %w", err)
+		view, getErr := h.store.GetView(ctx, userID, rule.ViewID.String)
+		if getErr != nil {
+			return fmt.Errorf("failed to get view for rule: %w", getErr)
 		}
 
 		if !view.Query.Valid || view.Query.String == "" {
@@ -87,9 +87,15 @@ func (h *ApplyRuleHandler) Handle(ctx context.Context, userID, ruleID string) er
 	const pageSize = 100
 	offset := int32(0)
 	totalProcessed := 0
+	compiler := query.NewViewCompiler(ctx, userID, h.store)
 
 	for {
-		dbQuery, err := query.BuildQuery(fullQueryStr, pageSize, offset)
+		var dbQuery db.NotificationQuery
+		if rule.ViewID.Valid {
+			dbQuery, err = compiler.BuildQuery(fullQueryStr, pageSize, offset, true)
+		} else {
+			dbQuery, err = query.BuildQuery(fullQueryStr, pageSize, offset)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to build query: %w", err)
 		}

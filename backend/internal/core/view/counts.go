@@ -18,10 +18,10 @@ package view
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
+	"github.com/octobud-hq/octobud/backend/internal/db"
 	"github.com/octobud-hq/octobud/backend/internal/query"
 )
 
@@ -35,11 +35,14 @@ var (
 func (s *Service) calculateViewUnreadCount(
 	ctx context.Context,
 	userID string,
-	viewQuery sql.NullString,
+	view db.View,
 ) (int64, error) {
+	if !view.ShowInSidebar {
+		return 0, nil
+	}
 	queryStr := ""
-	if viewQuery.Valid {
-		queryStr = viewQuery.String
+	if view.Query.Valid {
+		queryStr = view.Query.String
 	}
 
 	// Always AND the view's query with is:unread to get the unread count
@@ -52,7 +55,7 @@ func (s *Service) calculateViewUnreadCount(
 	}
 
 	// Use unified BuildQuery which applies business rules based on query content
-	dbQuery, err := query.BuildQuery(queryStr, 1, 0)
+	dbQuery, err := query.NewViewCompiler(ctx, userID, s.queries).BuildQuery(queryStr, 1, 0, true)
 
 	if err != nil {
 		return 0, errors.Join(ErrFailedToBuildQuery, err)

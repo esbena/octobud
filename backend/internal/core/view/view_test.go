@@ -121,11 +121,13 @@ func TestService_CreateView(t *testing.T) {
 			isDefault:   boolPtr(false),
 			queryStr:    "is:unread",
 			setupMock: func(m *mocks.MockStore, name string, query string) {
+				expectViewTransaction(m, "")
 				expectedView := db.View{
-					ID:    "1",
-					Name:  name,
-					Slug:  "my-view",
-					Query: sql.NullString{String: query, Valid: true},
+					ShowInSidebar: true,
+					ID:            "1",
+					Name:          name,
+					Slug:          "my-view",
+					Query:         sql.NullString{String: query, Valid: true},
 				}
 				m.EXPECT().
 					CreateView(gomock.Any(), "test-user-id", gomock.Any()).
@@ -218,6 +220,7 @@ func TestService_CreateView(t *testing.T) {
 			isDefault:   nil,
 			queryStr:    "is:unread",
 			setupMock: func(m *mocks.MockStore, _ string, _ string) {
+				expectViewTransaction(m, "")
 				dbError := errors.New("unique constraint violation")
 				m.EXPECT().
 					CreateView(gomock.Any(), "test-user-id", gomock.Any()).
@@ -256,6 +259,7 @@ func TestService_CreateView(t *testing.T) {
 				tt.icon,
 				tt.isDefault,
 				tt.queryStr,
+				nil,
 				nil,
 			)
 
@@ -297,10 +301,12 @@ func TestService_UpdateView(t *testing.T) {
 			isDefault:   boolPtr(true),
 			queryStr:    stringPtr("is:read"),
 			setupMock: func(m *mocks.MockStore, id string) {
+				expectViewTransaction(m, id)
 				expectedView := db.View{
-					ID:   id,
-					Name: "Updated View",
-					Slug: "updated-view",
+					ShowInSidebar: true,
+					ID:            id,
+					Name:          "Updated View",
+					Slug:          "updated-view",
 				}
 				m.EXPECT().
 					UpdateView(gomock.Any(), "test-user-id", gomock.Any()).
@@ -362,8 +368,8 @@ func TestService_UpdateView(t *testing.T) {
 			queryStr:    nil,
 			setupMock: func(m *mocks.MockStore, _ string) {
 				m.EXPECT().
-					UpdateView(gomock.Any(), "test-user-id", gomock.Any()).
-					Return(db.View{}, sql.ErrNoRows)
+					WithViewTransaction(gomock.Any(), gomock.Any()).
+					Return(sql.ErrNoRows)
 				m.EXPECT().
 					GetViewRepositoryDefault(gomock.Any(), "test-user-id", gomock.Any()).
 					Return(nil, nil).
@@ -383,6 +389,7 @@ func TestService_UpdateView(t *testing.T) {
 			isDefault:   nil,
 			queryStr:    nil,
 			setupMock: func(m *mocks.MockStore, _ string) {
+				expectViewTransaction(m, "1")
 				dbError := errors.New("database error")
 				m.EXPECT().
 					UpdateView(gomock.Any(), "test-user-id", gomock.Any()).
@@ -419,6 +426,7 @@ func TestService_UpdateView(t *testing.T) {
 				tt.isDefault,
 				tt.queryStr,
 				nil,
+				nil,
 			)
 
 			if tt.expectErr {
@@ -451,6 +459,7 @@ func TestService_DeleteView(t *testing.T) {
 			viewID: "1",
 			force:  false,
 			setupMock: func(m *mocks.MockStore, id string) {
+				expectViewTransaction(m, id)
 				m.EXPECT().
 					GetRulesByViewID(gomock.Any(), "test-user-id", gomock.Any()).
 					Return([]db.Rule{}, nil)
@@ -470,6 +479,7 @@ func TestService_DeleteView(t *testing.T) {
 			viewID: "1",
 			force:  false,
 			setupMock: func(m *mocks.MockStore, _ string) {
+				expectViewTransaction(m, "1")
 				linkedRules := []db.Rule{
 					{ID: "1", Name: "Rule 1"},
 					{ID: "2", Name: "Rule 2"},
@@ -486,6 +496,7 @@ func TestService_DeleteView(t *testing.T) {
 			viewID: "1",
 			force:  true,
 			setupMock: func(m *mocks.MockStore, id string) {
+				expectViewTransaction(m, id)
 				linkedRules := []db.Rule{
 					{ID: "1", Name: "Rule 1"},
 					{ID: "2", Name: "Rule 2"},
@@ -508,13 +519,10 @@ func TestService_DeleteView(t *testing.T) {
 			name:   "not found returns ErrViewNotFound",
 			viewID: "999",
 			force:  false,
-			setupMock: func(m *mocks.MockStore, id string) {
+			setupMock: func(m *mocks.MockStore, _ string) {
 				m.EXPECT().
-					GetRulesByViewID(gomock.Any(), "test-user-id", gomock.Any()).
-					Return([]db.Rule{}, nil)
-				m.EXPECT().
-					DeleteView(gomock.Any(), "test-user-id", id).
-					Return(int64(0), sql.ErrNoRows)
+					WithViewTransaction(gomock.Any(), gomock.Any()).
+					Return(sql.ErrNoRows)
 				m.EXPECT().
 					SetViewRepositoryDefault(gomock.Any(), "test-user-id", gomock.Any(), gomock.Nil()).
 					Return(nil).
@@ -530,6 +538,7 @@ func TestService_DeleteView(t *testing.T) {
 			viewID: "1",
 			force:  false,
 			setupMock: func(m *mocks.MockStore, _ string) {
+				expectViewTransaction(m, "1")
 				dbError := errors.New("database error")
 				m.EXPECT().
 					GetRulesByViewID(gomock.Any(), "test-user-id", gomock.Any()).
@@ -545,6 +554,7 @@ func TestService_DeleteView(t *testing.T) {
 			viewID: "1",
 			force:  false,
 			setupMock: func(m *mocks.MockStore, id string) {
+				expectViewTransaction(m, id)
 				m.EXPECT().
 					GetRulesByViewID(gomock.Any(), "test-user-id", gomock.Any()).
 					Return([]db.Rule{}, nil)
@@ -587,6 +597,23 @@ func TestService_DeleteView(t *testing.T) {
 			}
 		})
 	}
+}
+
+func expectViewTransaction(m *mocks.MockStore, currentID string) {
+	m.EXPECT().WithViewTransaction(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, fn func(db.ViewStore) error) error {
+			return fn(m)
+		})
+	var views []db.View
+	if currentID != "" {
+		current := db.View{
+			ID: currentID, Name: "Existing view", Slug: "existing-view",
+			Query: sql.NullString{String: "in:anywhere", Valid: true},
+		}
+		views = append(views, current)
+		m.EXPECT().GetView(gomock.Any(), "test-user-id", currentID).Return(current, nil)
+	}
+	m.EXPECT().ListViews(gomock.Any(), "test-user-id").Return(views, nil)
 }
 
 func TestService_ReorderViews(t *testing.T) {
@@ -844,7 +871,32 @@ func TestService_ListViewsWithCounts_AttachesRepositoryDefaults(t *testing.T) {
 	for _, v := range views {
 		bySlug[v.Slug] = v
 	}
+
 	require.Equal(t, []int64{7}, bySlug["reviews"].RepositoryIDs)
 	require.Equal(t, []int64{1, 2}, bySlug["inbox"].RepositoryIDs)
 	require.Nil(t, bySlug["archive"].RepositoryIDs)
+}
+
+func TestService_ListViewsWithCounts_SkipsHiddenViewCounts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := mocks.NewMockStore(ctrl)
+	store.EXPECT().ListViews(gomock.Any(), "owner").Return([]db.View{
+		{ID: "hidden", Name: "Helper", ShowInSidebar: false,
+			Query: sql.NullString{String: "in:inbox", Valid: true}},
+		{ID: "visible", Name: "Visible", ShowInSidebar: true,
+			Query: sql.NullString{String: "in:inbox", Valid: true}},
+	}, nil)
+	store.EXPECT().ListViewRepositoryDefaults(gomock.Any(), "owner").Return(nil, nil)
+	// Five built-in badges and one visible custom view; no independent helper count.
+	store.EXPECT().ListNotificationsFromQuery(gomock.Any(), "owner", gomock.Any()).
+		Return(db.ListNotificationsFromQueryResult{Total: 3}, nil).Times(6)
+
+	views, err := NewService(store).ListViewsWithCounts(t.Context(), "owner")
+	require.NoError(t, err)
+	require.Len(t, views, 7)
+	require.Equal(t, "hidden", views[0].ID)
+	require.False(t, views[0].ShowInSidebar)
+	require.Zero(t, views[0].UnreadCount)
+	require.True(t, views[1].ShowInSidebar)
+	require.Equal(t, int64(3), views[1].UnreadCount)
 }

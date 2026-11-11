@@ -62,6 +62,7 @@ interface ViewDialogControllerActions {
 		description: string;
 		icon: string;
 		query: string; // New: query string instead of filters array
+		showInSidebar: boolean;
 		createAutoRule?: boolean;
 		ruleConfig?: {
 			name: string;
@@ -94,6 +95,7 @@ const createEmptyDraft = (): NotificationViewDraft => ({
 	name: "",
 	description: "",
 	icon: DEFAULT_VIEW_ICON,
+	showInSidebar: true,
 	query: "in:inbox,filtered", // Pre-populate with in:inbox,filtered for explicit query context (good for skip inbox rules)
 });
 
@@ -154,6 +156,7 @@ export function createViewDialogController(
 			name: view.name,
 			description: view.description ?? "",
 			icon: normalizeViewIcon(view.icon),
+			showInSidebar: view.showInSidebar ?? true,
 			query: view.query || "", // New: use view's query string
 		});
 		confirmDeleteOpen.set(false);
@@ -167,6 +170,7 @@ export function createViewDialogController(
 			name: view.name,
 			description: view.description ?? "",
 			icon: normalizeViewIcon(view.icon),
+			showInSidebar: view.showInSidebar ?? true,
 			query: query, // Use the provided query instead of view's original query
 			// The list's current repository selection becomes the view's default on save.
 			repositoryIds,
@@ -185,6 +189,7 @@ export function createViewDialogController(
 		description: string;
 		icon: string;
 		query: string; // New: query string instead of filters array
+		showInSidebar: boolean;
 		createAutoRule?: boolean;
 		ruleConfig?: {
 			name: string;
@@ -210,6 +215,7 @@ export function createViewDialogController(
 				description: payload.description,
 				icon: cleanIconInput(payload.icon) ?? DEFAULT_VIEW_ICON,
 				query: payload.query, // New: send query string
+				showInSidebar: payload.showInSidebar,
 				...(repositoryIds !== undefined ? { repositoryIds } : {}),
 			};
 

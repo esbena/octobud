@@ -45,6 +45,7 @@ type ViewService interface {
 		isDefault *bool,
 		queryStr string,
 		repositoryIDs []int64,
+		showInSidebar *bool,
 	) (models.View, error)
 	UpdateView(
 		ctx context.Context,
@@ -54,6 +55,7 @@ type ViewService interface {
 		isDefault *bool,
 		queryStr *string,
 		repositoryIDs []int64,
+		showInSidebar *bool,
 	) (models.View, error)
 	SetViewRepositoryDefault(
 		ctx context.Context,

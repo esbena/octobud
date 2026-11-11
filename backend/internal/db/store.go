@@ -20,7 +20,7 @@ import (
 	"database/sql"
 )
 
-//go:generate mockgen -source=store.go -destination=mocks/mock_store.go -package=mocks
+//go:generate mockgen -source=store.go -destination=mocks/mock_store.go -package=mocks -exclude_interfaces=ViewStore
 
 // Store defines the interface for database queries used by the business logic layer.
 // This interface allows us to mock database operations in unit tests.
@@ -179,13 +179,9 @@ type Store interface {
 	) error
 
 	// View methods (IDs are now UUIDs/strings)
-	GetView(ctx context.Context, userID, id string) (View, error)
-	ListViews(ctx context.Context, userID string) ([]View, error)
-	CreateView(ctx context.Context, userID string, arg CreateViewParams) (View, error)
-	UpdateView(ctx context.Context, userID string, arg UpdateViewParams) (View, error)
-	DeleteView(ctx context.Context, userID, id string) (int64, error)
+	ViewStore
+	WithViewTransaction(ctx context.Context, fn func(ViewStore) error) error
 	UpdateViewOrder(ctx context.Context, userID string, arg UpdateViewOrderParams) error
-	GetRulesByViewID(ctx context.Context, userID string, viewID sql.NullString) ([]Rule, error)
 
 	// Rule methods (IDs are now UUIDs/strings)
 	GetRule(ctx context.Context, userID, id string) (Rule, error)
@@ -287,4 +283,14 @@ type Store interface {
 	) (int64, error)
 	DeleteOrphanedPullRequests(ctx context.Context, userID string) (int64, error)
 	DeleteAllGitHubData(ctx context.Context, userID string) error
+}
+
+// ViewStore is the subset available inside an atomic view-definition edit.
+type ViewStore interface {
+	GetView(ctx context.Context, userID, id string) (View, error)
+	ListViews(ctx context.Context, userID string) ([]View, error)
+	CreateView(ctx context.Context, userID string, arg CreateViewParams) (View, error)
+	UpdateView(ctx context.Context, userID string, arg UpdateViewParams) (View, error)
+	DeleteView(ctx context.Context, userID, id string) (int64, error)
+	GetRulesByViewID(ctx context.Context, userID string, viewID sql.NullString) ([]Rule, error)
 }

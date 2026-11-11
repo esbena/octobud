@@ -11,20 +11,21 @@ import (
 )
 
 const createView = `-- name: CreateView :one
-INSERT INTO views (user_id, name, slug, description, is_default, icon, query, display_order, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-RETURNING id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order
+INSERT INTO views (user_id, name, slug, description, is_default, icon, query, display_order, show_in_sidebar, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?9, 1), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+RETURNING id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order, show_in_sidebar
 `
 
 type CreateViewParams struct {
-	UserID       string
-	Name         string
-	Slug         string
-	Description  sql.NullString
-	IsDefault    int64
-	Icon         sql.NullString
-	Query        sql.NullString
-	DisplayOrder int64
+	UserID        string
+	Name          string
+	Slug          string
+	Description   sql.NullString
+	IsDefault     int64
+	Icon          sql.NullString
+	Query         sql.NullString
+	DisplayOrder  int64
+	ShowInSidebar interface{}
 }
 
 func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (View, error) {
@@ -37,6 +38,7 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (View, e
 		arg.Icon,
 		arg.Query,
 		arg.DisplayOrder,
+		arg.ShowInSidebar,
 	)
 	var i View
 	err := row.Scan(
@@ -50,6 +52,7 @@ func (q *Queries) CreateView(ctx context.Context, arg CreateViewParams) (View, e
 		&i.Slug,
 		&i.Query,
 		&i.DisplayOrder,
+		&i.ShowInSidebar,
 	)
 	return i, err
 }
@@ -72,7 +75,7 @@ func (q *Queries) DeleteView(ctx context.Context, arg DeleteViewParams) (int64, 
 }
 
 const getView = `-- name: GetView :one
-SELECT id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order FROM views WHERE user_id = ? AND id = ?
+SELECT id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order, show_in_sidebar FROM views WHERE user_id = ? AND id = ?
 `
 
 type GetViewParams struct {
@@ -94,12 +97,13 @@ func (q *Queries) GetView(ctx context.Context, arg GetViewParams) (View, error) 
 		&i.Slug,
 		&i.Query,
 		&i.DisplayOrder,
+		&i.ShowInSidebar,
 	)
 	return i, err
 }
 
 const listViews = `-- name: ListViews :many
-SELECT id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order FROM views WHERE user_id = ? ORDER BY display_order, name
+SELECT id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order, show_in_sidebar FROM views WHERE user_id = ? ORDER BY display_order, name
 `
 
 func (q *Queries) ListViews(ctx context.Context, userID string) ([]View, error) {
@@ -122,6 +126,7 @@ func (q *Queries) ListViews(ctx context.Context, userID string) ([]View, error) 
 			&i.Slug,
 			&i.Query,
 			&i.DisplayOrder,
+			&i.ShowInSidebar,
 		); err != nil {
 			return nil, err
 		}
@@ -138,25 +143,27 @@ func (q *Queries) ListViews(ctx context.Context, userID string) ([]View, error) 
 
 const updateView = `-- name: UpdateView :one
 UPDATE views SET
-    name = COALESCE(?, name),
-    slug = COALESCE(?, slug),
-    description = COALESCE(?, description),
-    icon = COALESCE(?, icon),
-    query = COALESCE(?, query),
-    is_default = COALESCE(?, is_default)
-WHERE user_id = ? AND id = ?
-RETURNING id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order
+    name = COALESCE(?1, name),
+    slug = COALESCE(?2, slug),
+    description = COALESCE(?3, description),
+    icon = COALESCE(?4, icon),
+    query = COALESCE(?5, query),
+    is_default = COALESCE(?6, is_default),
+    show_in_sidebar = COALESCE(?7, show_in_sidebar)
+WHERE user_id = ?8 AND id = ?9
+RETURNING id, user_id, name, description, is_default, created_at, icon, slug, "query", display_order, show_in_sidebar
 `
 
 type UpdateViewParams struct {
-	Name        string
-	Slug        string
-	Description sql.NullString
-	Icon        sql.NullString
-	Query       sql.NullString
-	IsDefault   int64
-	UserID      string
-	ID          string
+	Name          sql.NullString
+	Slug          sql.NullString
+	Description   sql.NullString
+	Icon          sql.NullString
+	Query         sql.NullString
+	IsDefault     sql.NullInt64
+	ShowInSidebar sql.NullInt64
+	UserID        string
+	ID            string
 }
 
 func (q *Queries) UpdateView(ctx context.Context, arg UpdateViewParams) (View, error) {
@@ -167,6 +174,7 @@ func (q *Queries) UpdateView(ctx context.Context, arg UpdateViewParams) (View, e
 		arg.Icon,
 		arg.Query,
 		arg.IsDefault,
+		arg.ShowInSidebar,
 		arg.UserID,
 		arg.ID,
 	)
@@ -182,6 +190,7 @@ func (q *Queries) UpdateView(ctx context.Context, arg UpdateViewParams) (View, e
 		&i.Slug,
 		&i.Query,
 		&i.DisplayOrder,
+		&i.ShowInSidebar,
 	)
 	return i, err
 }

@@ -30,21 +30,23 @@ import (
 )
 
 type createViewRequest struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Icon        *string `json:"icon"`
-	IsDefault   *bool   `json:"isDefault"`
-	Query       string  `json:"query"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description"`
+	Icon          *string `json:"icon"`
+	IsDefault     *bool   `json:"isDefault"`
+	ShowInSidebar *bool   `json:"showInSidebar"`
+	Query         string  `json:"query"`
 	// RepositoryIDs optionally sets the view's default repository selection.
 	RepositoryIDs []int64 `json:"repositoryIds"`
 }
 
 type updateViewRequest struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
-	Icon        *string `json:"icon"`
-	IsDefault   *bool   `json:"isDefault"`
-	Query       *string `json:"query"`
+	Name          *string `json:"name"`
+	Description   *string `json:"description"`
+	Icon          *string `json:"icon"`
+	IsDefault     *bool   `json:"isDefault"`
+	ShowInSidebar *bool   `json:"showInSidebar"`
+	Query         *string `json:"query"`
 	// RepositoryIDs: absent leaves the default selection unchanged; [] clears it.
 	RepositoryIDs []int64 `json:"repositoryIds"`
 }
@@ -108,6 +110,7 @@ func (h *Handler) handleCreateView(w http.ResponseWriter, r *http.Request) {
 		req.IsDefault,
 		queryStr,
 		req.RepositoryIDs,
+		req.ShowInSidebar,
 	)
 	if err != nil {
 		// Check for unique violation first (both wrapped and unwrapped)
@@ -194,6 +197,7 @@ func (h *Handler) handleUpdateView(w http.ResponseWriter, r *http.Request) {
 		req.IsDefault,
 		queryStr,
 		req.RepositoryIDs,
+		req.ShowInSidebar,
 	)
 	if err != nil {
 		if errors.Is(err, viewcore.ErrViewNotFound) {
@@ -307,6 +311,10 @@ func (h *Handler) handleDeleteView(w http.ResponseWriter, r *http.Request) {
 	// Check if there are any rules linked to this view
 	linkedRuleCount, err := h.viewSvc.DeleteView(ctx, userID, viewID, force)
 	if err != nil {
+		if errors.Is(err, viewcore.ErrViewReferenced) {
+			helpers.WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, viewcore.ErrViewNotFound) {
 			helpers.WriteError(w, http.StatusNotFound, err.Error())
 			return

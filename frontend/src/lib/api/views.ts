@@ -41,6 +41,7 @@ export class ViewLinkedRulesError extends ApiError {
 
 const cloneView = (view: NotificationView): NotificationView => ({
 	...view,
+	showInSidebar: view.showInSidebar ?? true,
 	slug: view.slug,
 	query: view.query || "",
 });
@@ -162,12 +163,13 @@ export async function deleteView(
 	);
 	if (!response.ok) {
 		if (response.status === 409) {
-			// Conflict - view has linked rules
-			const errorData: { linkedRuleCount?: number } = await response.json();
-			throw new ViewLinkedRulesError(
-				"This view has linked rules that will also be deleted",
-				errorData.linkedRuleCount ?? 0
-			);
+			const errorData: { linkedRuleCount?: number } = await response.clone().json();
+			if (typeof errorData.linkedRuleCount === "number" && errorData.linkedRuleCount > 0) {
+				throw new ViewLinkedRulesError(
+					"This view has linked rules that will also be deleted",
+					errorData.linkedRuleCount
+				);
+			}
 		}
 		throw await apiErrorFromResponse(response, `Failed to delete view (${response.status})`);
 	}
