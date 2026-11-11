@@ -29,6 +29,18 @@
 	import { resolveNotificationHtmlUrl } from "$lib/utils/githubUrls";
 	import SnoozeDropdown from "$lib/components/shared/SnoozeDropdown.svelte";
 	import TagDropdown from "$lib/components/shared/TagDropdown.svelte";
+	import ActivityBrief from "$lib/components/shared/ActivityBrief.svelte";
+	import {
+		activityBriefDays,
+		activityBriefEntries,
+		matchingActivityBrief,
+	} from "$lib/stores/activityBriefs";
+	$: activityBrief = matchingActivityBrief(
+		$activityBriefEntries,
+		notification.githubId,
+		notification.effectiveSortDate,
+		$activityBriefDays
+	);
 	import type { NotificationPageController } from "$lib/state/types";
 	import { formatSnoozeMessage } from "$lib/utils/snoozeFormat";
 	import { currentTime } from "$lib/stores/timeStore";
@@ -477,7 +489,7 @@
 				</div>
 			</div>
 
-			<!-- Bottom Row: Repo + Metadata -->
+			<!-- Repo + Metadata -->
 			<div class="flex flex-wrap items-center gap-1.5 pl-6">
 				<span
 					class={`text-sm ${isUnread ? "font-medium dark:font-normal text-gray-600" : "font-normal text-gray-500"} dark:text-gray-400`}
@@ -526,6 +538,11 @@
 					</div>
 				{/if}
 			</div>
+			{#if activityBrief && activityBrief.status !== "cancelled"}
+				<div class="pl-6 pt-1">
+					<ActivityBrief brief={activityBrief} compact />
+				</div>
+			{/if}
 		</div>
 
 		<div class="flex flex-col items-end justify-start self-stretch">
