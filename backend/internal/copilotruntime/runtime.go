@@ -126,7 +126,7 @@ func run(ctx context.Context, input RuntimeRequest, cliPath string) (err error) 
 		return cause
 	}
 	if sendErr != nil {
-		return fmt.Errorf("%w: cannot complete request; check runtime and credential", ErrSession)
+		return fmt.Errorf("%w: cannot complete request: %w", ErrSession, sendErr)
 	}
 	return nil
 }

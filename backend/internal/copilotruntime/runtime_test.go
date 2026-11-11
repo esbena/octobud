@@ -183,6 +183,9 @@ func TestRuntimeFailsClosed(t *testing.T) {
 			var called atomic.Bool
 			err := run(t.Context(), testRequest(&called), path)
 			require.ErrorIs(t, err, tc.want)
+			if tc.mode == "send-error" {
+				require.ErrorContains(t, err, "synthetic failure")
+			}
 			capture := readCapture(t, captured)
 			_, err = os.Stat(capture.Dir)
 			require.ErrorIs(t, err, os.ErrNotExist)
