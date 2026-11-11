@@ -180,7 +180,7 @@ func (l *Lexer) readQuotedString() (string, error) {
 				result.WriteRune(l.ch)
 			}
 		} else {
-			result.WriteRune(l.ch)
+			result.WriteByte(byte(l.ch))
 		}
 		l.readChar()
 	}

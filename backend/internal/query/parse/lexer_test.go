@@ -184,6 +184,11 @@ func TestLexer_QuotedStrings(t *testing.T) {
 			expected: "fix: urgent (P0)",
 		},
 		{
+			name:     "quoted string with Unicode",
+			input:    "\"\U0001f4ac R\u00e9vision\"",
+			expected: "\U0001f4ac R\u00e9vision",
+		},
+		{
 			name:     "quoted string with escaped quote",
 			input:    `"say \"hello\""`,
 			expected: `say "hello"`,
