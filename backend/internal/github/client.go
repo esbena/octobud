@@ -805,6 +805,7 @@ type DiscussionComment struct {
 	Author    struct {
 		Login     string `json:"login"`
 		AvatarURL string `json:"avatarUrl"`
+		Type      string `json:"__typename"`
 	} `json:"author"`
 	URL     string `json:"url"`
 	Replies struct {
@@ -817,11 +818,13 @@ type DiscussionComment struct {
 			Author    struct {
 				Login     string `json:"login"`
 				AvatarURL string `json:"avatarUrl"`
+				Type      string `json:"__typename"`
 			} `json:"author"`
 			URL string `json:"url"`
 		} `json:"nodes"`
 		PageInfo struct {
-			HasPreviousPage bool `json:"hasPreviousPage"`
+			HasPreviousPage bool   `json:"hasPreviousPage"`
+			StartCursor     string `json:"startCursor"`
 		} `json:"pageInfo"`
 	} `json:"replies"`
 }
@@ -829,7 +832,7 @@ type DiscussionComment struct {
 // DiscussionCommentsResponse represents the GraphQL response for discussion comments.
 type DiscussionCommentsResponse struct {
 	Repository struct {
-		Discussion struct {
+		Discussion *struct {
 			Comments struct {
 				Nodes    []DiscussionComment `json:"nodes"`
 				PageInfo struct {
@@ -868,6 +871,7 @@ func (c *clientImpl) FetchDiscussionComments( //nolint:gocritic // Prefer in-lin
 							author {
 								login
 								avatarUrl
+								__typename
 							}
 							url
 							replies(last: 5) {
@@ -880,11 +884,13 @@ func (c *clientImpl) FetchDiscussionComments( //nolint:gocritic // Prefer in-lin
 									author {
 										login
 										avatarUrl
+										__typename
 									}
 									url
 								}
 								pageInfo {
 									hasPreviousPage
+									startCursor
 								}
 							}
 						}
@@ -917,82 +923,17 @@ func (c *clientImpl) FetchDiscussionComments( //nolint:gocritic // Prefer in-lin
 		Variables: variables,
 	}
 
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, false, "", fmt.Errorf("github: marshal graphql request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		githubGraphQLBase,
-		bytes.NewBuffer(jsonBody),
-	)
-	if err != nil {
-		return nil, false, "", fmt.Errorf("github: create graphql request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, false, "", fmt.Errorf("github: execute graphql request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			_ = closeErr
-		}
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, false, "", fmt.Errorf("github: read graphql response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, false, "", fmt.Errorf(
-			"github: graphql status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
-	}
-
-	var graphqlResp GraphQLResponse
-	if err := json.Unmarshal(body, &graphqlResp); err != nil {
-		return nil, false, "", fmt.Errorf("github: unmarshal graphql response: %w", err)
-	}
-
-	// Check for GraphQL errors
-	if len(graphqlResp.Errors) > 0 {
-		var errorMsgs []string
-		for _, err := range graphqlResp.Errors {
-			errorMsgs = append(errorMsgs, err.Message)
-		}
-		return nil, false, "", fmt.Errorf("github: graphql errors: %v", errorMsgs)
-	}
-
-	// Parse the data
 	var data DiscussionCommentsResponse
-	if err := json.Unmarshal(graphqlResp.Data, &data); err != nil {
-		return nil, false, "", fmt.Errorf("github: unmarshal graphql data: %w", err)
+	if err := c.fetchDiscussionGraphQL(ctx, reqBody, &data); err != nil {
+		return nil, false, "", err
+	}
+	if data.Repository.Discussion == nil {
+		return nil, false, "", fmt.Errorf("github: discussion is unavailable")
 	}
 
 	comments := data.Repository.Discussion.Comments.Nodes
 	pageInfo := data.Repository.Discussion.Comments.PageInfo
 
-	// When using 'last', we get hasPreviousPage and startCursor for reverse pagination
-	// But we return hasNextPage and endCursor for compatibility with the existing interface
-	// hasNextPage means there are more OLDER comments to load
-	hasNextPage := pageInfo.HasPreviousPage
-	// For reverse pagination, endCursor is the startCursor (pointing to the oldest comment in this batch)
-	endCursor := pageInfo.StartCursor
-
-	// Convert DiscussionComment to TimelineEvent
-	// Note: When using 'last', comments are returned in chronological order (oldest to newest)
-	// So the first comment in the array is the oldest, and the last is the newest.
-	// We reverse the order so newest comments come first, matching the expected timeline order.
 	timelineEvents := make([]types.TimelineEvent, len(comments))
 	for i := len(comments) - 1; i >= 0; i-- {
 		comment := comments[i]
@@ -1008,30 +949,136 @@ func (c *clientImpl) FetchDiscussionComments( //nolint:gocritic // Prefer in-lin
 			User: &types.SimpleUser{
 				Login:     comment.Author.Login,
 				AvatarURL: comment.Author.AvatarURL,
+				Type:      comment.Author.Type,
 			},
 		}
-		// Attach reply data
 		if comment.Replies.TotalCount > 0 {
 			te.ReplyCount = comment.Replies.TotalCount
 			te.HasMoreReplies = comment.Replies.PageInfo.HasPreviousPage
-			for _, r := range comment.Replies.Nodes {
-				rCreatedAt := r.CreatedAt
-				rUpdatedAt := r.UpdatedAt
-				te.Replies = append(te.Replies, types.DiscussionReplyData{
-					ID:        r.ID,
-					Body:      r.Body,
-					CreatedAt: &rCreatedAt,
-					UpdatedAt: &rUpdatedAt,
-					Author: types.SimpleUser{
-						Login:     r.Author.Login,
-						AvatarURL: r.Author.AvatarURL,
-					},
-					HTMLURL: r.URL,
-				})
-			}
+			te.RepliesCursor = comment.Replies.PageInfo.StartCursor
+			te.Replies = discussionReplies(comment)
 		}
 		timelineEvents[len(comments)-1-i] = te
 	}
+	return timelineEvents, pageInfo.HasPreviousPage, pageInfo.StartCursor, nil
+}
 
-	return timelineEvents, hasNextPage, endCursor, nil
+// FetchDiscussionReplies retrieves older replies without changing the bounded UI timeline fetch.
+func (c *clientImpl) FetchDiscussionReplies(
+	ctx context.Context,
+	commentID string,
+	last int,
+	before string,
+) ([]types.DiscussionReplyData, bool, string, error) {
+	query := `
+		query GetDiscussionReplies($id: ID!, $last: Int!, $before: String) {
+			node(id: $id) {
+				... on DiscussionComment {
+					id
+					replies(last: $last, before: $before) {
+						nodes {
+							id body createdAt updatedAt url
+							author { login avatarUrl __typename }
+						}
+						pageInfo { hasPreviousPage startCursor }
+					}
+				}
+			}
+		}`
+	var data struct {
+		Node *DiscussionComment `json:"node"`
+	}
+	err := c.fetchDiscussionGraphQL(ctx, GraphQLRequest{
+		Query: query,
+		Variables: map[string]interface{}{
+			"id": commentID, "last": last, "before": before,
+		},
+	}, &data)
+	if err != nil {
+		return nil, false, "", err
+	}
+	if data.Node == nil || data.Node.ID != commentID {
+		return nil, false, "", fmt.Errorf("github: discussion comment %s is unavailable", commentID)
+	}
+	return discussionReplies(*data.Node),
+		data.Node.Replies.PageInfo.HasPreviousPage, data.Node.Replies.PageInfo.StartCursor, nil
+}
+
+func discussionReplies(comment DiscussionComment) []types.DiscussionReplyData {
+	replies := make([]types.DiscussionReplyData, 0, len(comment.Replies.Nodes))
+	for _, r := range comment.Replies.Nodes {
+		createdAt, updatedAt := r.CreatedAt, r.UpdatedAt
+		replies = append(replies, types.DiscussionReplyData{
+			ID: r.ID, Body: r.Body, CreatedAt: &createdAt, UpdatedAt: &updatedAt,
+			Author: types.SimpleUser{
+				Login: r.Author.Login, AvatarURL: r.Author.AvatarURL, Type: r.Author.Type,
+			},
+			HTMLURL: r.URL,
+		})
+	}
+	return replies
+}
+
+func (c *clientImpl) fetchDiscussionGraphQL(ctx context.Context, reqBody GraphQLRequest, data interface{}) error {
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("github: marshal graphql request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		githubGraphQLBase,
+		bytes.NewBuffer(jsonBody),
+	)
+	if err != nil {
+		return fmt.Errorf("github: create graphql request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("github: execute graphql request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			_ = closeErr
+		}
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("github: read graphql response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(
+			"github: graphql status %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
+	}
+
+	var graphqlResp GraphQLResponse
+	if err := json.Unmarshal(body, &graphqlResp); err != nil {
+		return fmt.Errorf("github: unmarshal graphql response: %w", err)
+	}
+
+	// Check for GraphQL errors
+	if len(graphqlResp.Errors) > 0 {
+		var errorMsgs []string
+		for _, err := range graphqlResp.Errors {
+			errorMsgs = append(errorMsgs, err.Message)
+		}
+		return fmt.Errorf("github: graphql errors: %v", errorMsgs)
+	}
+
+	// Parse the data
+	if err := json.Unmarshal(graphqlResp.Data, data); err != nil {
+		return fmt.Errorf("github: unmarshal graphql data: %w", err)
+	}
+	return nil
 }
