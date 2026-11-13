@@ -49,6 +49,8 @@ type Client interface {
 		unreadOnly bool,
 	) ([]types.NotificationThread, error)
 	FetchSubjectRaw(ctx context.Context, subjectURL string) (json.RawMessage, error)
+	// FetchOpeningPost returns the original post with its actual body-edit timestamp.
+	FetchOpeningPost(ctx context.Context, owner, repo string, number int, discussion bool) (types.TimelineEvent, error)
 	// FetchTimeline retrieves timeline events for an issue or pull request using REST API.
 	// Returns the events on the requested page, plus the last page number parsed from
 	// the Link response header (1 if no Link header / single page).

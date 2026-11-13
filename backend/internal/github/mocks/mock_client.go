@@ -108,6 +108,21 @@ func (mr *MockClientMockRecorder) FetchNotifications(ctx, since, before, unreadO
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNotifications", reflect.TypeOf((*MockClient)(nil).FetchNotifications), ctx, since, before, unreadOnly)
 }
 
+// FetchOpeningPost mocks base method.
+func (m *MockClient) FetchOpeningPost(ctx context.Context, owner, repo string, number int, discussion bool) (types.TimelineEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchOpeningPost", ctx, owner, repo, number, discussion)
+	ret0, _ := ret[0].(types.TimelineEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchOpeningPost indicates an expected call of FetchOpeningPost.
+func (mr *MockClientMockRecorder) FetchOpeningPost(ctx, owner, repo, number, discussion any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOpeningPost", reflect.TypeOf((*MockClient)(nil).FetchOpeningPost), ctx, owner, repo, number, discussion)
+}
+
 // FetchPRCommits mocks base method.
 func (m *MockClient) FetchPRCommits(ctx context.Context, owner, repo string, number int) ([]types.PRCommit, error) {
 	m.ctrl.T.Helper()

@@ -12,6 +12,7 @@ var (
 	ErrInvalid     = errors.New("invalid activity brief request")
 	ErrUnavailable = errors.New("activity briefs are not configured")
 	ErrUnsupported = errors.New("notification type does not support activity briefs")
+	ErrIncomplete  = errors.New("activity evidence is incomplete")
 )
 
 // Evidence IDs are server-owned and shared by deterministic kinds and model citations.
@@ -26,18 +27,31 @@ type Evidence struct {
 	URL      string     `json:"url,omitempty"`
 	ParentID string     `json:"parentId,omitempty"`
 	Detail   string     `json:"detail,omitempty"`
+	// Reader metadata keeps original chronology separate from At (the change time).
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	ActorType string     `json:"actorType,omitempty"`
+	RootID    string     `json:"rootId,omitempty"`
+	ReviewID  string     `json:"reviewId,omitempty"`
+	Path      string     `json:"path,omitempty"`
+	DiffHunk  string     `json:"diffHunk,omitempty"`
+	Outdated  *bool      `json:"outdated,omitempty"`
+	Message   string     `json:"message,omitempty"`
 }
 
 type Snapshot struct {
-	ReaderUsername string     `json:"readerUsername"`
-	Author         string     `json:"author,omitempty"`
-	NotificationID string     `json:"notificationId"`
-	Title          string     `json:"title"`
-	Since          time.Time  `json:"since"`
-	FetchedAt      time.Time  `json:"fetchedAt"`
-	New            []Evidence `json:"newActivity"`
-	Context        []Evidence `json:"olderContext"`
-	Warnings       []string   `json:"warnings"`
+	ReaderUsername  string     `json:"readerUsername"`
+	Author          string     `json:"author,omitempty"`
+	NotificationID  string     `json:"notificationId"`
+	Title           string     `json:"title"`
+	Selection       string     `json:"selection,omitempty"`
+	Since           time.Time  `json:"since"`
+	BaselineMessage string     `json:"baselineMessage,omitempty"`
+	FetchedAt       time.Time  `json:"fetchedAt"`
+	TotalEntries    int        `json:"totalEntries"`
+	New             []Evidence `json:"newActivity"`
+	Context         []Evidence `json:"olderContext"`
+	Warnings        []string   `json:"warnings"`
 }
 
 type Bullet struct {
@@ -59,8 +73,12 @@ type Summarizer interface {
 }
 
 func Build(ctx context.Context, snapshot Snapshot, summarize bool, model Summarizer) (Result, error) {
+	baselineSource := snapshot.Selection
+	if baselineSource == "" {
+		baselineSource = "explicit_cutoff"
+	}
 	result := Result{
-		Snapshot: snapshot, BaselineSource: "explicit_cutoff",
+		Snapshot: snapshot, BaselineSource: baselineSource,
 		EventKinds: []string{}, Bullets: []Bullet{},
 	}
 	for _, event := range snapshot.New {
