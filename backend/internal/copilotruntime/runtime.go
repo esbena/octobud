@@ -20,7 +20,7 @@ import (
 const (
 	maxInputBytes  = 2 * 1024 * 1024
 	maxOutputBytes = 512 * 1024
-	requestTimeout = 90 * time.Second
+	requestTimeout = time.Minute
 )
 
 var (

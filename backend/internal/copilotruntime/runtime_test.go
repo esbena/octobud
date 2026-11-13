@@ -200,6 +200,7 @@ func TestRuntimeFailsClosed(t *testing.T) {
 }
 
 func TestRuntimeLimits(t *testing.T) {
+	require.Equal(t, time.Minute, requestTimeout)
 	for _, tc := range []struct {
 		name      string
 		mode      string
