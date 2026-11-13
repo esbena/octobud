@@ -62,14 +62,24 @@ type Bullet struct {
 
 type Result struct {
 	Snapshot
-	BaselineSource string   `json:"baselineSource"`
-	EventKinds     []string `json:"eventKinds"`
-	Bullets        []Bullet `json:"bullets"`
-	Summarized     bool     `json:"summarized"`
+	BaselineSource string       `json:"baselineSource"`
+	EventKinds     []string     `json:"eventKinds"`
+	Bullets        []Bullet     `json:"bullets"`
+	RichSummary    *RichSummary `json:"richSummary,omitempty"`
+	Summarized     bool         `json:"summarized"`
+}
+
+type RichSummary struct {
+	Text        string   `json:"text"`
+	EvidenceIDs []string `json:"evidenceIds"`
 }
 
 type Summarizer interface {
 	Summarize(context.Context, Snapshot) ([]Bullet, error)
+}
+
+type RichSummarizer interface {
+	SummarizeRich(context.Context, Snapshot) (RichSummary, error)
 }
 
 func Build(ctx context.Context, snapshot Snapshot, summarize bool, model Summarizer) (Result, error) {
@@ -101,6 +111,28 @@ func Build(ctx context.Context, snapshot Snapshot, summarize bool, model Summari
 		return result, err
 	}
 	result.Bullets = bullets
+	result.Summarized = true
+	return result, nil
+}
+
+func BuildRich(ctx context.Context, snapshot Snapshot, model RichSummarizer) (Result, error) {
+	result, err := Build(ctx, snapshot, false, nil)
+	if err != nil {
+		return Result{}, err
+	}
+	if model == nil {
+		return Result{}, ErrUnavailable
+	}
+	if len(snapshot.New) == 0 {
+		result.RichSummary = &RichSummary{EvidenceIDs: []string{}}
+		result.Summarized = true
+		return result, nil
+	}
+	summary, err := model.SummarizeRich(ctx, snapshot)
+	if err != nil {
+		return Result{}, err
+	}
+	result.RichSummary = &summary
 	result.Summarized = true
 	return result, nil
 }

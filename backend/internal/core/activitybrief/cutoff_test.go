@@ -1,6 +1,8 @@
 package activitybrief
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -89,4 +91,22 @@ func TestRebaseSinceLastCommentReclassifiesEditsAndKeepsCommitsAsContext(t *test
 	require.Len(t, result.Context, 2)
 	require.Equal(t, "committed", result.Context[0].Kind)
 	require.Equal(t, "context", result.Context[0].Change)
+}
+
+func TestDecodeRichSummaryRequiresNewEvidenceCitations(t *testing.T) {
+	snapshot := Snapshot{
+		New:     []Evidence{{ID: "new"}},
+		Context: []Evidence{{ID: "old"}},
+	}
+	encoded := json.RawMessage(`{"text":"The author accepted the proposed fix.","evidenceIds":["new"]}`)
+	var args map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &args))
+	result, err := decodeRichSummary(args, snapshot)
+	require.NoError(t, err)
+	require.Equal(t, []string{"new"}, result.EvidenceIDs)
+
+	args["evidenceIds"] = []any{"old"}
+	_, err = decodeRichSummary(args, snapshot)
+	require.Error(t, err)
+	require.False(t, errors.Is(err, ErrInvalid))
 }
