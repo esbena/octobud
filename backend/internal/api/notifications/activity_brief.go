@@ -57,6 +57,7 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Since     time.Time `json:"since"`
 		Summarize bool      `json:"summarize"`
+		Rich      bool      `json:"rich"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -64,7 +65,7 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 		helpers.WriteError(
 			w,
 			http.StatusBadRequest,
-			"expected since (RFC3339) and optional summarize boolean",
+			"expected since (RFC3339) and optional summarize/rich booleans",
 		)
 		return
 	}
@@ -97,7 +98,8 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var model activitybrief.Summarizer
-	if input.Summarize {
+	var richModel activitybrief.RichSummarizer
+	if input.Summarize || input.Rich {
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		var stop func() bool
@@ -108,6 +110,10 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 					return activitybrief.ErrUnavailable
 				}
 				model = h.briefFactory(settings.ActivityHighlights.Model)
+				richModel, _ = model.(activitybrief.RichSummarizer)
+				if input.Rich && richModel == nil {
+					return activitybrief.ErrUnavailable
+				}
 				stop = context.AfterFunc(work, cancel)
 				return nil
 			},
@@ -119,7 +125,7 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 		defer stop()
 		r = r.WithContext(ctx)
 	}
-	snapshot, err := activitybrief.Collect(
+	snapshot, err := activitybrief.CollectForReader(
 		r.Context(),
 		h.githubClient,
 		notification,
@@ -131,7 +137,7 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snapshot.Author = notification.AuthorLogin.String
-	if input.Summarize {
+	if input.Summarize || input.Rich {
 		reader, readerErr := h.authSvc.GetUser(r.Context())
 		if readerErr != nil || reader == nil || reader.GithubUsername == "" ||
 			reader.GithubUserID != userID {
@@ -146,6 +152,15 @@ func (h *Handler) handleActivityBrief(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		snapshot.ReaderUsername = reader.GithubUsername
+	}
+	if input.Rich {
+		result, err := activitybrief.BuildRich(r.Context(), snapshot, richModel)
+		if err != nil {
+			h.activityBriefError(w, err)
+			return
+		}
+		helpers.WriteJSON(w, http.StatusOK, result)
+		return
 	}
 	result, err := activitybrief.Build(r.Context(), snapshot, input.Summarize, model)
 	if err != nil {

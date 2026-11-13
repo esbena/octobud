@@ -24,6 +24,21 @@ import (
 
 type briefModel func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error)
 
+type richBriefModel struct {
+	summary func(context.Context, activitybrief.Snapshot) (activitybrief.RichSummary, error)
+}
+
+func (richBriefModel) Summarize(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
+	return nil, nil
+}
+
+func (m richBriefModel) SummarizeRich(
+	ctx context.Context,
+	snapshot activitybrief.Snapshot,
+) (activitybrief.RichSummary, error) {
+	return m.summary(ctx, snapshot)
+}
+
 func (h *Handler) withActivityBriefs(model activitybrief.Summarizer) *Handler {
 	h.briefFactory = func(string) activitybrief.Summarizer { return model }
 	h.briefQueue = activitybrief.NewQueue()
@@ -40,6 +55,14 @@ func briefRequest(body string) *http.Request {
 	route.URLParams.Add("githubID", "id")
 	ctx := context.WithValue(request.Context(), chi.RouteCtxKey, route)
 	return request.WithContext(helpers.ContextWithUserID(ctx, "owner"))
+}
+
+func expectBriefOpeningPost(client *githubmocks.MockClient) {
+	created := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	client.EXPECT().FetchOpeningPost(gomock.Any(), "o", "r", 1, false).Return(types.TimelineEvent{
+		Event: "opened", ID: json.RawMessage(`"opening"`), CreatedAt: &created,
+		Body: "Original post", HTMLURL: "https://github.com/o/r/issues/1",
+	}, nil)
 }
 
 func TestActivityBriefValidatesRequestBeforeFetching(t *testing.T) {
@@ -101,10 +124,12 @@ func TestActivityBriefOnDemandAndErrors(t *testing.T) {
 			client := githubmocks.NewMockClient(ctrl)
 			handler.githubClient = client
 			if test.status != http.StatusServiceUnavailable {
+				expectBriefOpeningPost(client)
 				at := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 				client.EXPECT().FetchTimeline(gomock.Any(), "o", "r", 1, 100, 1).Return(
 					[]types.TimelineEvent{{ID: json.RawMessage("1"), Event: "closed", CreatedAt: &at}}, 1, nil)
 			}
+
 			if test.configured {
 				handler.withActivityBriefs(briefModel(func(_ context.Context, snapshot activitybrief.Snapshot) ([]activitybrief.Bullet, error) {
 					require.Equal(t, "id", snapshot.NotificationID)
@@ -133,4 +158,46 @@ func TestActivityBriefOnDemandAndErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestActivityBriefRichSummaryUsesReaderEvidence(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	handler, notifications, _, auth := setupTestHandler(ctrl)
+	auth.EXPECT().GetUser(gomock.Any()).Return(
+		&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil,
+	).AnyTimes()
+	notifications.EXPECT().GetByGithubID(gomock.Any(), "owner", "id").Return(db.Notification{
+		GithubID: "id", SubjectType: "Issue", SubjectTitle: "Original topic",
+		SubjectURL: sql.NullString{String: "https://api.github.com/repos/o/r/issues/1", Valid: true},
+	}, nil)
+	at := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	client := githubmocks.NewMockClient(ctrl)
+	expectBriefOpeningPost(client)
+	client.EXPECT().FetchTimeline(gomock.Any(), "o", "r", 1, 100, 1).Return(
+		[]types.TimelineEvent{{ID: json.RawMessage("1"), Event: "closed", CreatedAt: &at}},
+		1,
+		nil,
+	)
+	handler.githubClient = client
+	handler.withActivityBriefs(richBriefModel{
+		summary: func(_ context.Context, snapshot activitybrief.Snapshot) (activitybrief.RichSummary, error) {
+			require.Equal(t, "reader", snapshot.ReaderUsername)
+			require.Len(t, snapshot.New, 1)
+			return activitybrief.RichSummary{
+				Text: "The issue was closed.", EvidenceIDs: []string{snapshot.New[0].ID},
+			}, nil
+		},
+	})
+	configureBriefTestSettings(t, handler, true)
+	response := httptest.NewRecorder()
+	handler.handleActivityBrief(
+		response,
+		briefRequest(`{"since":"2026-01-01T00:00:00Z","rich":true}`),
+	)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var result activitybrief.Result
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
+	require.Equal(t, "The issue was closed.", result.RichSummary.Text)
+	require.Equal(t, []string{"timeline:closed:1"}, result.RichSummary.EvidenceIDs)
+	require.True(t, result.Summarized)
 }

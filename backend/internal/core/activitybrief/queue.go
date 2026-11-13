@@ -21,13 +21,14 @@ type Key struct {
 	UserID         string
 	NotificationID string
 	Version        string
-	Days           int
+	Selection      string
+	Since          time.Time
 }
 
 type Entry struct {
 	NotificationID string    `json:"notificationId"`
 	Version        string    `json:"version"`
-	Days           int       `json:"days"`
+	Selection      string    `json:"selection"`
 	Status         string    `json:"status"`
 	Since          time.Time `json:"since"`
 	UpdatedAt      time.Time `json:"updatedAt"`
@@ -75,8 +76,15 @@ func (q *Queue) Enqueue(key Key, run func(context.Context, time.Time) (Result, e
 	if q.closed {
 		return false, errors.New("summary queue is stopping")
 	}
+	if key.Since.IsZero() || key.Selection == "" {
+		return false, ErrInvalid
+	}
+	cacheKey := key
+	if key.Selection == "past_7_days" || key.Selection == "my_last_comment" {
+		cacheKey.Since = time.Time{}
+	}
 	q.prune()
-	if old := q.entries[key]; old != nil && old.entry.Status != "failed" && old.entry.Status != "cancelled" {
+	if old := q.entries[cacheKey]; old != nil && old.entry.Status != "failed" && old.entry.Status != "cancelled" {
 		return false, nil
 	}
 	pending := 0
@@ -102,12 +110,12 @@ func (q *Queue) Enqueue(key Key, run func(context.Context, time.Time) (Result, e
 		delete(q.entries, oldest.key)
 	}
 	now := q.now().UTC()
-	job := &queuedBrief{key: key, run: run, entry: Entry{
-		NotificationID: key.NotificationID, Version: key.Version, Days: key.Days,
-		Status: "queued", Since: now.Add(-time.Duration(key.Days) * 24 * time.Hour),
+	job := &queuedBrief{key: cacheKey, run: run, entry: Entry{
+		NotificationID: key.NotificationID, Version: key.Version, Selection: key.Selection,
+		Status: "queued", Since: key.Since.UTC(),
 		UpdatedAt: now, Bullets: []Bullet{},
 	}}
-	q.entries[key] = job
+	q.entries[cacheKey] = job
 	q.pending = append(q.pending, job)
 	if q.workers < maxWorkers {
 		q.workers++
@@ -148,6 +156,9 @@ func (q *Queue) work() {
 				job.entry.Error = fmt.Sprintf("Activity summary failed: %v", err)
 			} else {
 				job.entry.Status = "ready"
+				if !result.Since.IsZero() {
+					job.entry.Since = result.Since.UTC()
+				}
 				job.entry.Bullets = result.Bullets
 				job.entry.Warnings = result.Warnings
 			}

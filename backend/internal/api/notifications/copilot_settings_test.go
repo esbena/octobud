@@ -50,7 +50,10 @@ func TestDisabledSettingsPreventBatchWork(t *testing.T) {
 		Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).
 		AnyTimes()
 	response := httptest.NewRecorder()
-	handler.handleActivityBriefBatch(response, briefRequest(`{"query":"in:inbox","days":3}`))
+	handler.handleActivityBriefBatch(
+		response,
+		briefRequest(`{"query":"in:inbox","selection":"past_7_days","timeZone":"UTC"}`),
+	)
 	require.Equal(t, http.StatusServiceUnavailable, response.Code)
 	require.Empty(t, handler.briefQueue.Entries("owner"))
 }
@@ -60,7 +63,9 @@ func TestDisablingSettingsCancelsRunningQueueWork(t *testing.T) {
 	handler.withActivityBriefs(briefModel(nil))
 	store := configureBriefTestSettings(t, handler, true)
 	started, stopped := make(chan struct{}), make(chan struct{})
-	_, err := handler.briefQueue.Enqueue(activitybrief.Key{UserID: "owner", NotificationID: "one"},
+	_, err := handler.briefQueue.Enqueue(activitybrief.Key{
+		UserID: "owner", NotificationID: "one", Selection: "today", Since: time.Now().Add(-time.Hour),
+	},
 		func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
 			close(started)
 			<-ctx.Done()

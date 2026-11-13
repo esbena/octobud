@@ -38,7 +38,7 @@ func TestPersistenceDefaultsAndDisabling(t *testing.T) {
 		t, settings.HighlightsEnabled(), "master enablement alone must not enable features",
 	)
 	settings.ActivityHighlights = ActivityHighlights{
-		Enabled: true, DefaultDays: 7, Model: "custom-model",
+		Enabled: true, AutoSummarizeVisible: true, Model: "custom-model",
 	}
 	require.NoError(t, service.Update(t.Context(), settings))
 	// A new service reads persisted preferences, not process-local state.
@@ -95,11 +95,6 @@ func TestFailedSaveDoesNotCancelWork(t *testing.T) {
 }
 
 func TestInvalidPreferencesAreRejected(t *testing.T) {
-	for _, days := range []int{0, 2, 31} {
-		settings := Defaults()
-		settings.ActivityHighlights.DefaultDays = days
-		require.Error(t, settings.Validate())
-	}
 	for _, model := range []string{"", " ", " model"} {
 		settings := Defaults()
 		settings.ActivityHighlights.Model = model
