@@ -16,7 +16,9 @@
 
 	import { getContext } from "svelte";
 	import type { Notification } from "$lib/api/types";
+	import octicons from "@primer/octicons";
 	import ActivityBriefButton from "$lib/components/shared/ActivityBriefButton.svelte";
+	import { activityBriefEnabled } from "$lib/stores/activityBriefs";
 	import { getArchiveIcon } from "$lib/utils/archiveIcons";
 	import { getMuteIcon } from "$lib/utils/muteIcons";
 	import { mailOpenIcon, mailClosedIcon } from "$lib/utils/notificationHelpers";
@@ -37,6 +39,9 @@
 	export let markingRead = false;
 	export let archiving = false;
 	export let hideBackButton = false;
+	export let onShowActivitySummary: (() => void) | undefined = undefined;
+	export let onGenerateDetailedSummary: (() => void) | undefined = undefined;
+	export let activityBriefSince: string | null | undefined = undefined;
 
 	// Compute navigation state from stores
 	$: totalCount = $pageData.total;
@@ -178,7 +183,31 @@
 
 		<!-- Action buttons -->
 		<div class="flex items-center gap-1">
-			<ActivityBriefButton {notification} />
+			<ActivityBriefButton
+				{notification}
+				sinceOverride={activityBriefSince}
+				onShowReadySummary={onShowActivitySummary}
+			/>
+			{#if $activityBriefEnabled && onGenerateDetailedSummary}
+				<button
+					type="button"
+					class="flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-indigo-600 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:text-indigo-300 dark:hover:bg-gray-700/50"
+					on:click={onGenerateDetailedSummary}
+					title="Generate detailed summary in What's new"
+					aria-label="Generate detailed summary"
+				>
+					<span class="relative">
+						<svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 16 16" fill="currentColor"
+							>{@html octicons.copilot.heights["16"].path}</svg
+						>
+						<span
+							aria-hidden="true"
+							class="absolute -right-1.5 -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold leading-none text-white dark:bg-indigo-400 dark:text-gray-950"
+							>+</span
+						>
+					</span>
+				</button>
+			{/if}
 			{#if subjectLink}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a

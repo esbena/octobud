@@ -2,7 +2,7 @@ import { apiErrorFromResponse, fetchWithAuth } from "./fetch";
 
 export interface CopilotSettings {
 	enabled: boolean;
-	activityHighlights: { enabled: boolean; defaultDays: number; model: string };
+	activityHighlights: { enabled: boolean; autoSummarizeVisible: boolean; model: string };
 }
 
 export async function copilotSettingsRequest(settings?: CopilotSettings): Promise<CopilotSettings> {

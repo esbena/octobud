@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { ActivityBriefEntry } from "$lib/api/activityBriefs";
+	import { WHATS_NEW_SELECTIONS } from "$lib/utils/whatsNewCutoff";
 	export let brief: ActivityBriefEntry | undefined = undefined;
 	export let compact = false;
+	$: rangeLabel = WHATS_NEW_SELECTIONS.find((option) => option.value === brief?.selection)?.label ?? "";
 	$: groups = [
 		{ label: "For you", recipient: "for_you", directed: true },
 		{ label: "Other activity", recipient: "other_activity", directed: false },
@@ -29,10 +31,7 @@
 					: "Activity highlights"}</span
 			>
 			<span aria-hidden="true">·</span>
-			<span
-				>Last {brief.days}
-				{brief.days === 1 ? "day" : "days"}
-			</span>
+			<span>{rangeLabel}</span>
 			{#if brief.status === "queued" || brief.status === "running"}
 				<span role="status"> · {brief.status === "queued" ? "Queued" : "Summarizing…"}</span>
 			{/if}
@@ -79,7 +78,7 @@
 						: ""}</summary
 				>
 				<p class="mt-2">
-					Since {new Date(brief.since).toLocaleString()} · Not an archive baseline.
+					Since {new Date(brief.since).toLocaleString()} · A selected range, not an archive baseline.
 				</p>
 				{#each brief.warnings ?? [] as warning, index (index)}
 					<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{warning}</p>

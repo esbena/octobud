@@ -6,7 +6,7 @@ import { copilotSettingsRequest, type CopilotSettings } from "$lib/api/copilotSe
 vi.mock("$lib/api/copilotSettings", () => ({ copilotSettingsRequest: vi.fn() }));
 const defaults: CopilotSettings = {
 	enabled: false,
-	activityHighlights: { enabled: false, defaultDays: 3, model: "gpt-6-luna" },
+	activityHighlights: { enabled: false, autoSummarizeVisible: false, model: "gpt-6-luna" },
 };
 
 afterEach(() => {
@@ -27,14 +27,14 @@ it("loads disabled defaults and explains standard authentication without a token
 	expect(copilotSettingsRequest).toHaveBeenCalledExactlyOnceWith();
 });
 
-it("saves independent feature preferences without generating summaries", async () => {
+it("saves automatic summary preferences without generating summaries", async () => {
 	vi.mocked(copilotSettingsRequest).mockResolvedValue(structuredClone(defaults));
 	render(CopilotSettingsSection);
 	await fireEvent.click(await screen.findByRole("checkbox", { name: "Enable Copilot" }));
 	await fireEvent.click(screen.getByRole("checkbox", { name: "Enable activity highlights" }));
-	await fireEvent.change(screen.getByRole("combobox", { name: "Default lookback" }), {
-		target: { value: "7" },
-	});
+	await fireEvent.click(
+		screen.getByRole("checkbox", { name: "Automatically summarize visible notifications" })
+	);
 	await fireEvent.input(screen.getByRole("textbox", { name: "Model" }), {
 		target: { value: "another-model" },
 	});
@@ -42,7 +42,11 @@ it("saves independent feature preferences without generating summaries", async (
 	await waitFor(() =>
 		expect(copilotSettingsRequest).toHaveBeenLastCalledWith({
 			enabled: true,
-			activityHighlights: { enabled: true, defaultDays: 7, model: "another-model" },
+			activityHighlights: {
+				enabled: true,
+				autoSummarizeVisible: true,
+				model: "another-model",
+			},
 		})
 	);
 	expect(await screen.findByRole("status")).toHaveTextContent("Copilot settings saved.");

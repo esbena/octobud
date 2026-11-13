@@ -25,6 +25,9 @@
 	export let item: NotificationThreadItem;
 	export let showThread: boolean = true;
 	export let isLastItem: boolean = false;
+	export let knownBot = false;
+	export let forceEdited = false;
+	export let activityEmphasis: "new" | "context" | undefined = undefined;
 
 	// Safely extract review comments (only present on NotificationTimelineItem)
 	$: timelineItem = item as NotificationTimelineItem;
@@ -34,14 +37,17 @@
 	$: replyCount = timelineItem.replyCount;
 	$: hasMoreReplies = timelineItem.hasMoreReplies;
 
-	$: authorName = item.author.login;
+	$: authorName = item.author.login || "Unknown author";
 	$: authorInitial = authorName.charAt(0).toUpperCase();
 	$: directAvatarUrl = item.author.avatarUrl;
 	$: isBot =
-		authorName.toLowerCase().includes("[bot]") || authorName.toLowerCase().endsWith("-bot");
+		knownBot ||
+		authorName.toLowerCase().includes("[bot]") ||
+		authorName.toLowerCase().endsWith("-bot");
 
 	// Compute base avatar URL (direct or redirect)
-	$: authorAvatarUrl = computeAvatarUrl(directAvatarUrl, authorName);
+	$: authorAvatarUrl =
+		authorName === "Unknown author" ? "" : computeAvatarUrl(directAvatarUrl, authorName);
 
 	// Resolved avatar URL (after following redirect if needed)
 	let resolvedAvatarUrl: string | null = null;
@@ -67,16 +73,17 @@
 	}
 
 	$: timestamp =
-		item.type === "comment" || item.type === "commented"
+		item.type === "comment" || item.type === "commented" || item.type === "opened"
 			? item.createdAt
 			: item.type === "review" || item.type === "reviewed"
 				? item.submittedAt
 				: "";
 
 	$: wasEdited =
-		(item.type === "comment" || item.type === "commented") &&
-		item.updatedAt &&
-		item.createdAt !== item.updatedAt;
+		forceEdited ||
+		((item.type === "comment" || item.type === "commented" || item.type === "opened") &&
+			!!item.updatedAt &&
+			item.createdAt !== item.updatedAt);
 
 	// Helper to safely format timestamp with relative time
 	$: formattedTimestamp = (() => {
@@ -247,10 +254,20 @@
 
 		<!-- Comment/Review content -->
 		<div class="flex-1 min-w-0">
-			<div class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+			<div
+				class={`border rounded-lg overflow-hidden ${
+					activityEmphasis === "new"
+						? "border-indigo-400 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20"
+						: "border-gray-200 dark:border-gray-800"
+				}`}
+			>
 				<!-- Header -->
 				<div
-					class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800"
+					class={`flex items-center justify-between px-4 py-3 border-b ${
+						activityEmphasis === "new"
+							? "bg-indigo-50/60 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800"
+							: "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-800"
+					}`}
 				>
 					<div class="flex items-center gap-3">
 						<!-- Author Info -->
@@ -292,8 +309,21 @@
 								{/if}
 							{:else}
 								<span class="text-gray-600 dark:text-gray-500">
-									commented {#if formattedTimestamp}
-										{formattedTimestamp}{/if}
+									{item.type === "opened" ? "opened" : "commented"}
+									{#if formattedTimestamp}
+										{#if item.htmlUrl}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+											<a
+												href={item.htmlUrl}
+												target="_blank"
+												rel="noreferrer"
+												class="hover:underline"
+												title="Open activity on GitHub">{formattedTimestamp}</a
+											>
+										{:else}
+											{formattedTimestamp}
+										{/if}
+									{/if}
 								</span>
 							{/if}
 							{#if wasEdited}
@@ -318,7 +348,10 @@
 
 				<!-- Body -->
 				{#if item.body?.trim()}
-					<div class="p-4 leading-relaxed text-gray-900 dark:text-gray-200">
+					<div
+						class="p-4 leading-relaxed text-gray-900 dark:text-gray-200"
+						class:opacity-75={activityEmphasis === "context"}
+					>
 						<div
 							class="overflow-x-auto prose dark:prose-invert prose-sm max-w-none prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-headings:text-gray-900 dark:prose-headings:text-gray-300 prose-headings:font-semibold prose-a:text-indigo-600 dark:prose-a:text-indigo-300 prose-a:no-underline prose-link-hover prose-strong:text-gray-900 dark:prose-strong:text-gray-300 prose-strong:font-semibold prose-code:text-gray-800 dark:prose-code:text-gray-300 prose-code:bg-gray-100 dark:prose-code:bg-gray-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-[''] prose-code:after:content-[''] prose-pre:text-gray-800 dark:prose-pre:text-gray-300 prose-pre:bg-gray-100 dark:prose-pre:bg-[#161b22] prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300 prose-li:text-gray-700 dark:prose-li:text-gray-300"
 						>

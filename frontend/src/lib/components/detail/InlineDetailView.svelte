@@ -27,21 +27,19 @@
 	import { getNotificationChip } from "$lib/utils/notificationChips";
 	import { formatSnoozeMessage } from "$lib/utils/snoozeFormat";
 	import type { TimelineController } from "$lib/state/timelineController";
+	import type { WhatsNewEntryCounts } from "$lib/types/whatsNew";
 	import TimelineThread from "$lib/components/timeline/TimelineThread.svelte";
+	import ReaderTabs from "$lib/components/timeline/ReaderTabs.svelte";
+	import WhatsNewReader from "$lib/components/timeline/WhatsNewReader.svelte";
+	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
+	import { githubUsername } from "$lib/stores/authStore";
+	import { get } from "svelte/store";
+	import { compareWhatsNewTimestamps } from "$lib/utils/whatsNewGrouping";
 	import DetailActionBar from "./DetailActionBar.svelte";
 	import ActivityBrief from "$lib/components/shared/ActivityBrief.svelte";
-	import {
-		activityBriefDays,
-		activityBriefEntries,
-		matchingActivityBrief,
-	} from "$lib/stores/activityBriefs";
-	$: activityBrief = matchingActivityBrief(
-		$activityBriefEntries,
-		notification?.githubId,
-		notification?.effectiveSortDate,
-		$activityBriefDays
-	);
+	import { activityBriefEntries, matchingActivityBrief } from "$lib/stores/activityBriefs";
 	import { getNotificationTypeConfig } from "$lib/utils/notificationTypeConfig";
+	import { getWhatsNewCutoff } from "$lib/utils/whatsNewCutoff";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import type { NotificationPageController } from "$lib/state/types";
 	import { currentTime } from "$lib/stores/timeStore";
@@ -82,6 +80,59 @@
 	export let markingRead = false;
 	export let archiving = false;
 	export let hideBackButton = false;
+
+	const { whatsNewDefault, catchUpSelection } = getNotificationSettingsStore();
+	let readerNotificationId: string | null = null;
+	let readerReadCutoff: string | null = null;
+	let readerArchiveCutoff: string | null = null;
+	let readerCounts: WhatsNewEntryCounts | null = null;
+	let richSummaryTrigger = 0;
+	$: activityBrief = matchingActivityBrief(
+		$activityBriefEntries,
+		notification?.githubId,
+		notification?.effectiveSortDate,
+		$catchUpSelection,
+		getWhatsNewCutoff($catchUpSelection, readerReadCutoff, readerArchiveCutoff)
+	);
+	$: activityBriefSince = getWhatsNewCutoff(
+		$catchUpSelection,
+		readerReadCutoff,
+		readerArchiveCutoff
+	);
+	let readerGeneration = 0;
+	let activeReaderView: "full" | "whats_new" = "full";
+	$: if (notification && notification.id !== readerNotificationId) {
+		readerNotificationId = notification.id;
+		readerReadCutoff = notification.timelineLastSeenAt ?? null;
+		readerArchiveCutoff = notification.lastArchivedAt ?? null;
+		readerCounts = null;
+		richSummaryTrigger = 0;
+		readerGeneration += 1;
+		activeReaderView = $whatsNewDefault ? "whats_new" : "full";
+	}
+	$: supportsReader = !!(
+		timelineController &&
+		notification.githubId &&
+		typeConfig?.showCommentThread
+	);
+	$: readerId = `reader-${notification.id}`;
+
+	function showFullView() {
+		activeReaderView = "full";
+	}
+
+	function handleReaderCounts(counts: WhatsNewEntryCounts | null) {
+		readerCounts = counts;
+	}
+
+	function generateDetailedSummary() {
+		activeReaderView = "whats_new";
+		richSummaryTrigger += 1;
+	}
+
+	function handleRichSummaryRequestHandled() {
+		richSummaryTrigger = 0;
+	}
 
 	// Delayed loading state to avoid jank on fast loads
 	let showLoadingSkeleton = false;
@@ -164,6 +215,7 @@
 	}
 
 	onDestroy(() => {
+		readerGeneration += 1;
 		if (loadingTimeoutId !== null) {
 			clearTimeout(loadingTimeoutId);
 		}
@@ -442,17 +494,35 @@
 	);
 	const dependabotIconPath = getIconPath("dependabot");
 
+	function seenHandler(githubId: string, generation: number) {
+		return (timestamp: string) => handleUpdateTimelineLastSeen(githubId, timestamp, generation);
+	}
+
 	// Handler for updating timeline last seen timestamp
-	async function handleUpdateTimelineLastSeen(timestamp: string) {
-		const githubId = notification?.githubId;
-		if (!githubId) return;
+	async function handleUpdateTimelineLastSeen(
+		githubId: string,
+		timestamp: string,
+		generation: number
+	) {
+		const selectedNotification = get(currentDetailNotificationStore);
+		if (generation !== readerGeneration || selectedNotification?.githubId !== githubId) return;
+		if (
+			selectedNotification.timelineLastSeenAt &&
+			compareWhatsNewTimestamps(timestamp, selectedNotification.timelineLastSeenAt) !== 1
+		)
+			return;
 
 		try {
 			await updateTimelineLastSeen(githubId, timestamp);
-			// Update notification in the store so derived stores and props react
-			if (notification) {
+			const currentNotification = get(currentDetailNotificationStore);
+			if (
+				generation === readerGeneration &&
+				currentNotification?.githubId === githubId &&
+				(!currentNotification.timelineLastSeenAt ||
+					compareWhatsNewTimestamps(timestamp, currentNotification.timelineLastSeenAt) === 1)
+			) {
 				pageController.actions.updateNotification({
-					...notification,
+					...currentNotification,
 					timelineLastSeenAt: timestamp,
 				});
 			}
@@ -473,7 +543,16 @@
 {#if notification}
 	<div class="flex h-full flex-col overflow-hidden bg-white dark:bg-gray-950">
 		<!-- Fixed Action Bar -->
-		<DetailActionBar {notification} {isSplitView} {markingRead} {archiving} {hideBackButton} />
+		<DetailActionBar
+			{notification}
+			{isSplitView}
+			{markingRead}
+			{archiving}
+			{hideBackButton}
+			{activityBriefSince}
+			onShowActivitySummary={showFullView}
+			onGenerateDetailedSummary={supportsReader ? generateDetailedSummary : undefined}
+		/>
 
 		<!-- Scrollable Content -->
 		<div bind:this={scrollContainer} class="flex-1 overflow-y-auto" data-detail-scroll-container>
@@ -1185,220 +1264,76 @@
 						</div>
 					{/if}
 
-					<!-- For CI Activity, show a simple info message -->
-					{#if isDependabotAlert}
-						<div
-							class="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30"
-						>
-							<svg
-								class="w-5 h-5 flex-shrink-0 text-blue-500 dark:text-blue-400"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-								{@html dependabotIconPath}
-							</svg>
-							<p class="text-sm text-gray-600 dark:text-gray-400">
-								This is a Dependabot security alert. View the full details on GitHub.
-							</p>
-						</div>
-					{:else if isSecurityAdvisory}
-						<div
-							class="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30"
-						>
-							<svg
-								class="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-								{@html getIconPath("shield")}
-							</svg>
-							<p class="text-sm text-gray-600 dark:text-gray-400">
-								{isAdvisoryCredit
-									? "You were credited on a security advisory. Accept or decline the credit on GitHub."
-									: "This is a repository security advisory. View the full details on GitHub."}
-							</p>
-						</div>
-					{:else if isCIActivity}
-						<div
-							class="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30"
-						>
-							<svg
-								class="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								aria-hidden="true"
-							>
-								<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-								{@html getIconPath("play")}
-							</svg>
-							<p class="text-sm text-gray-600 dark:text-gray-400">
-								This is a CI/CD workflow notification. View the full details on GitHub Actions.
-							</p>
-						</div>
-					{:else if isRelease}
-						<!-- Release: Custom release body view -->
-						<div class="mt-6">
-							<div
-								class={`border border-gray-200 dark:border-gray-800 rounded-lg p-6 leading-relaxed text-gray-900 dark:text-gray-200 ${showLoadingSkeleton ? "shimmer" : ""}`}
-							>
-								{#if showLoadingSkeleton}
-									<!-- Empty during loading -->
-								{:else if !detail}
-									<!-- Waiting for detail to load -->
-									<p class="text-sm text-gray-600 dark:text-gray-400 italic">Loading...</p>
-								{:else if detail.subject?.body && hasVisibleContent(detail.subject.body)}
-									<div
-										class="prose dark:prose-invert prose-sm max-w-none prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-headings:text-gray-900 dark:prose-headings:text-gray-300 prose-headings:font-semibold prose-a:text-indigo-600 dark:prose-a:text-indigo-300 prose-a:no-underline prose-link-hover prose-strong:text-gray-900 dark:prose-strong:text-gray-300 prose-strong:font-semibold prose-code:text-gray-800 dark:prose-code:text-gray-300 prose-code:bg-gray-100 dark:prose-code:bg-gray-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-[''] prose-code:after:content-[''] prose-pre:text-gray-800 dark:prose-pre:text-gray-300 prose-pre:bg-gray-100 dark:prose-pre:bg-[#161b22] prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300 prose-li:text-gray-700 dark:prose-li:text-gray-300"
-										in:fade={{ duration: 200 }}
+					{#if supportsReader}
+						<ReaderTabs id={readerId} bind:activeView={activeReaderView} counts={readerCounts} />
+					{/if}
+
+					<div
+						id={`${readerId}-full-panel`}
+						role={supportsReader ? "tabpanel" : undefined}
+						aria-labelledby={supportsReader ? `${readerId}-full-tab` : undefined}
+						hidden={supportsReader && activeReaderView !== "full"}
+					>
+						{#if !supportsReader || activeReaderView === "full"}
+							<!-- For CI Activity, show a simple info message -->
+							{#if isDependabotAlert}
+								<div
+									class="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30"
+								>
+									<svg
+										class="w-5 h-5 flex-shrink-0 text-blue-500 dark:text-blue-400"
+										viewBox="0 0 16 16"
+										fill="currentColor"
+										aria-hidden="true"
 									>
 										<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-										{@html renderMarkdown(detail.subject.body)}
-									</div>
-								{:else}
-									<p
-										class="text-sm text-gray-600 dark:text-gray-400 italic"
-										in:fade={{ duration: 200 }}
-									>
-										{typeConfig?.emptyContentMessage || "No release notes provided."}
+										{@html dependabotIconPath}
+									</svg>
+									<p class="text-sm text-gray-600 dark:text-gray-400">
+										This is a Dependabot security alert. View the full details on GitHub.
 									</p>
-								{/if}
-							</div>
-						</div>
-					{:else}
-						<!-- GitHub-style Comment Header + Content -->
-						<div class="flex gap-3">
-							<!-- Avatar and thread line -->
-							<div
-								class="flex flex-col items-center flex-shrink-0 relative z-10"
-								style="width: 40px;"
-							>
-								<!-- Avatar / Initial -->
-								<div class="flex-shrink-0">
-									{#key notification.id}
-										{#if finalAvatarUrl && !avatarLoadFailed}
-											<img
-												src={finalAvatarUrl}
-												alt={`${authorName}'s avatar`}
-												class="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-700 ring-2 ring-white dark:ring-gray-950"
-												on:error={handleAvatarError}
-											/>
-										{:else}
-											<div
-												class="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center ring-2 ring-white dark:ring-gray-950"
-											>
-												<span class="text-sm font-bold text-gray-800 dark:text-gray-200">
-													{authorInitial}
-												</span>
-											</div>
-										{/if}
-									{/key}
 								</div>
-
-								<!-- Thread line extending down - only show if notification type supports timeline AND timeline has been loaded -->
-								{#if timelineController && notification.githubId && typeConfig?.showCommentThread && hasLoadedTimeline}
-									<div class="flex-1 w-0.5 bg-gray-300 dark:bg-gray-800 min-h-4 -z-10"></div>
-								{/if}
-							</div>
-
-							<!-- Comment box -->
-							<div class="flex-1 min-w-0">
-								<div class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
-									<!-- Comment Header -->
-									<div
-										class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800"
+							{:else if isSecurityAdvisory}
+								<div
+									class="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30"
+								>
+									<svg
+										class="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
+										viewBox="0 0 16 16"
+										fill="currentColor"
+										aria-hidden="true"
 									>
-										<div class="flex items-center gap-3">
-											<!-- Author Info -->
-											<div class="flex items-center gap-2 text-sm">
-												<span class="font-semibold text-gray-900 dark:text-gray-200">
-													{authorName}
-												</span>
-												{#if isBot}
-													<span
-														class="px-1.5 text-xs font-medium border border-gray-300 dark:border-gray-700 rounded-md text-gray-600 dark:text-gray-400"
-													>
-														Bot
-													</span>
-												{/if}
-												<span class="font-medium text-gray-600 dark:text-gray-500">
-													{typeConfig?.timestampVerb || "updated"}
-													{formattedTimestamp}
-												</span>
-											</div>
-										</div>
-
-										<!-- Status Indicators -->
-										<div class="flex items-center gap-2">
-											{#if isRefreshing}
-												<div class="group relative flex-shrink-0">
-													<svg
-														class="h-4 w-4 text-blue-400/60 animate-spin-slow"
-														viewBox="0 0 24 24"
-														fill="none"
-														xmlns="http://www.w3.org/2000/svg"
-														aria-label="Refreshing"
-													>
-														<circle
-															class="opacity-25"
-															cx="12"
-															cy="12"
-															r="10"
-															stroke="currentColor"
-															stroke-width="3"
-														/>
-														<path
-															class="opacity-75"
-															fill="currentColor"
-															d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-														/>
-													</svg>
-													<!-- Tooltip -->
-													<div
-														class="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-48 rounded-lg border border-blue-700/50 bg-blue-900/95 px-3 py-2 text-xs text-blue-200 shadow-lg backdrop-blur-sm group-hover:block"
-													>
-														Refreshing from GitHub...
-													</div>
-												</div>
-											{:else if showingStaleData}
-												<div class="group relative flex-shrink-0">
-													<svg
-														class="h-5 w-5 text-amber-400"
-														viewBox="0 0 24 24"
-														fill="none"
-														xmlns="http://www.w3.org/2000/svg"
-														aria-label="Stale data warning"
-													>
-														<path
-															d="M12 9V13M12 17H12.01M10.29 3.86L1.82 18C1.64537 18.3024 1.55299 18.6453 1.55201 18.9945C1.55103 19.3437 1.64149 19.6871 1.81442 19.9905C1.98735 20.2939 2.23672 20.5467 2.53771 20.7239C2.83869 20.901 3.18072 20.9962 3.53 21H20.47C20.8193 20.9962 21.1613 20.901 21.4623 20.7239C21.7633 20.5467 22.0127 20.2939 22.1856 19.9905C22.3585 19.6871 22.449 19.3437 22.448 18.9945C22.447 18.6453 22.3546 18.3024 22.18 18L13.71 3.86C13.5317 3.56611 13.2807 3.32312 12.9812 3.15448C12.6817 2.98585 12.3437 2.89725 12 2.89725C11.6563 2.89725 11.3183 2.98585 11.0188 3.15448C10.7193 3.32312 10.4683 3.56611 10.29 3.86Z"
-															stroke="currentColor"
-															stroke-width="2"
-															stroke-linecap="round"
-															stroke-linejoin="round"
-														/>
-													</svg>
-													<!-- Tooltip -->
-													<div
-														class="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-64 rounded-lg border border-amber-700/50 bg-amber-900/95 px-3 py-2 text-sm text-amber-200 shadow-lg backdrop-blur-sm group-hover:block"
-													>
-														<p>
-															<span class="font-semibold">Unable to refresh data.</span>
-															<span class="text-amber-300/90"
-																>Showing cached information from last sync.</span
-															>
-														</p>
-													</div>
-												</div>
-											{/if}
-										</div>
-									</div>
-
-									<!-- Content section -->
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+										{@html getIconPath("shield")}
+									</svg>
+									<p class="text-sm text-gray-600 dark:text-gray-400">
+										{isAdvisoryCredit
+											? "You were credited on a security advisory. Accept or decline the credit on GitHub."
+											: "This is a repository security advisory. View the full details on GitHub."}
+									</p>
+								</div>
+							{:else if isCIActivity}
+								<div
+									class="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30"
+								>
+									<svg
+										class="w-5 h-5 flex-shrink-0 text-gray-500 dark:text-gray-400"
+										viewBox="0 0 16 16"
+										fill="currentColor"
+										aria-hidden="true"
+									>
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+										{@html getIconPath("play")}
+									</svg>
+									<p class="text-sm text-gray-600 dark:text-gray-400">
+										This is a CI/CD workflow notification. View the full details on GitHub Actions.
+									</p>
+								</div>
+							{:else if isRelease}
+								<!-- Release: Custom release body view -->
+								<div class="mt-6">
 									<div
-										class={`p-4 leading-relaxed text-gray-900 dark:text-gray-200 min-h-[120px] ${showLoadingSkeleton ? "shimmer" : ""}`}
+										class={`border border-gray-200 dark:border-gray-800 rounded-lg p-6 leading-relaxed text-gray-900 dark:text-gray-200 ${showLoadingSkeleton ? "shimmer" : ""}`}
 									>
 										{#if showLoadingSkeleton}
 											<!-- Empty during loading -->
@@ -1418,28 +1353,213 @@
 												class="text-sm text-gray-600 dark:text-gray-400 italic"
 												in:fade={{ duration: 200 }}
 											>
-												{typeConfig?.emptyContentMessage || "No description provided."}
+												{typeConfig?.emptyContentMessage || "No release notes provided."}
 											</p>
 										{/if}
 									</div>
 								</div>
-							</div>
-						</div>
-					{/if}
+							{:else}
+								<!-- GitHub-style Comment Header + Content -->
+								<div class="flex gap-3">
+									<!-- Avatar and thread line -->
+									<div
+										class="flex flex-col items-center flex-shrink-0 relative z-10"
+										style="width: 40px;"
+									>
+										<!-- Avatar / Initial -->
+										<div class="flex-shrink-0">
+											{#key notification.id}
+												{#if finalAvatarUrl && !avatarLoadFailed}
+													<img
+														src={finalAvatarUrl}
+														alt={`${authorName}'s avatar`}
+														class="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-700 ring-2 ring-white dark:ring-gray-950"
+														on:error={handleAvatarError}
+													/>
+												{:else}
+													<div
+														class="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center ring-2 ring-white dark:ring-gray-950"
+													>
+														<span class="text-sm font-bold text-gray-800 dark:text-gray-200">
+															{authorInitial}
+														</span>
+													</div>
+												{/if}
+											{/key}
+										</div>
 
-					<!-- Timeline Thread - only show for types that support timeline -->
-					{#if timelineController && notification.githubId && typeConfig?.showCommentThread}
-						{#key notification.githubId}
-							<TimelineThread
-								githubId={notification.githubId}
-								{timelineController}
-								subjectType={notification.subjectType}
-								{hasPermissionError}
-								timelineLastSeenAt={notification.timelineLastSeenAt}
-								onUpdateLastSeen={handleUpdateTimelineLastSeen}
-								onNewActivityViewed={handleNewActivityViewed}
-							/>
-						{/key}
+										<!-- Thread line extending down - only show if notification type supports timeline AND timeline has been loaded -->
+										{#if timelineController && notification.githubId && typeConfig?.showCommentThread && hasLoadedTimeline}
+											<div class="flex-1 w-0.5 bg-gray-300 dark:bg-gray-800 min-h-4 -z-10"></div>
+										{/if}
+									</div>
+
+									<!-- Comment box -->
+									<div class="flex-1 min-w-0">
+										<div
+											class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden"
+										>
+											<!-- Comment Header -->
+											<div
+												class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800"
+											>
+												<div class="flex items-center gap-3">
+													<!-- Author Info -->
+													<div class="flex items-center gap-2 text-sm">
+														<span class="font-semibold text-gray-900 dark:text-gray-200">
+															{authorName}
+														</span>
+														{#if isBot}
+															<span
+																class="px-1.5 text-xs font-medium border border-gray-300 dark:border-gray-700 rounded-md text-gray-600 dark:text-gray-400"
+															>
+																Bot
+															</span>
+														{/if}
+														<span class="font-medium text-gray-600 dark:text-gray-500">
+															{typeConfig?.timestampVerb || "updated"}
+															{formattedTimestamp}
+														</span>
+													</div>
+												</div>
+
+												<!-- Status Indicators -->
+												<div class="flex items-center gap-2">
+													{#if isRefreshing}
+														<div class="group relative flex-shrink-0">
+															<svg
+																class="h-4 w-4 text-blue-400/60 animate-spin-slow"
+																viewBox="0 0 24 24"
+																fill="none"
+																xmlns="http://www.w3.org/2000/svg"
+																aria-label="Refreshing"
+															>
+																<circle
+																	class="opacity-25"
+																	cx="12"
+																	cy="12"
+																	r="10"
+																	stroke="currentColor"
+																	stroke-width="3"
+																/>
+																<path
+																	class="opacity-75"
+																	fill="currentColor"
+																	d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+																/>
+															</svg>
+															<!-- Tooltip -->
+															<div
+																class="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-48 rounded-lg border border-blue-700/50 bg-blue-900/95 px-3 py-2 text-xs text-blue-200 shadow-lg backdrop-blur-sm group-hover:block"
+															>
+																Refreshing from GitHub...
+															</div>
+														</div>
+													{:else if showingStaleData}
+														<div class="group relative flex-shrink-0">
+															<svg
+																class="h-5 w-5 text-amber-400"
+																viewBox="0 0 24 24"
+																fill="none"
+																xmlns="http://www.w3.org/2000/svg"
+																aria-label="Stale data warning"
+															>
+																<path
+																	d="M12 9V13M12 17H12.01M10.29 3.86L1.82 18C1.64537 18.3024 1.55299 18.6453 1.55201 18.9945C1.55103 19.3437 1.64149 19.6871 1.81442 19.9905C1.98735 20.2939 2.23672 20.5467 2.53771 20.7239C2.83869 20.901 3.18072 20.9962 3.53 21H20.47C20.8193 20.9962 21.1613 20.901 21.4623 20.7239C21.7633 20.5467 22.0127 20.2939 22.1856 19.9905C22.3585 19.6871 22.449 19.3437 22.448 18.9945C22.447 18.6453 22.3546 18.3024 22.18 18L13.71 3.86C13.5317 3.56611 13.2807 3.32312 12.9812 3.15448C12.6817 2.98585 12.3437 2.89725 12 2.89725C11.6563 2.89725 11.3183 2.98585 11.0188 3.15448C10.7193 3.32312 10.4683 3.56611 10.29 3.86Z"
+																	stroke="currentColor"
+																	stroke-width="2"
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																/>
+															</svg>
+															<!-- Tooltip -->
+															<div
+																class="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-64 rounded-lg border border-amber-700/50 bg-amber-900/95 px-3 py-2 text-sm text-amber-200 shadow-lg backdrop-blur-sm group-hover:block"
+															>
+																<p>
+																	<span class="font-semibold">Unable to refresh data.</span>
+																	<span class="text-amber-300/90"
+																		>Showing cached information from last sync.</span
+																	>
+																</p>
+															</div>
+														</div>
+													{/if}
+												</div>
+											</div>
+
+											<!-- Content section -->
+											<div
+												class={`p-4 leading-relaxed text-gray-900 dark:text-gray-200 min-h-[120px] ${showLoadingSkeleton ? "shimmer" : ""}`}
+											>
+												{#if showLoadingSkeleton}
+													<!-- Empty during loading -->
+												{:else if !detail}
+													<!-- Waiting for detail to load -->
+													<p class="text-sm text-gray-600 dark:text-gray-400 italic">Loading...</p>
+												{:else if detail.subject?.body && hasVisibleContent(detail.subject.body)}
+													<div
+														class="prose dark:prose-invert prose-sm max-w-none prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-headings:text-gray-900 dark:prose-headings:text-gray-300 prose-headings:font-semibold prose-a:text-indigo-600 dark:prose-a:text-indigo-300 prose-a:no-underline prose-link-hover prose-strong:text-gray-900 dark:prose-strong:text-gray-300 prose-strong:font-semibold prose-code:text-gray-800 dark:prose-code:text-gray-300 prose-code:bg-gray-100 dark:prose-code:bg-gray-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-[''] prose-code:after:content-[''] prose-pre:text-gray-800 dark:prose-pre:text-gray-300 prose-pre:bg-gray-100 dark:prose-pre:bg-[#161b22] prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300 prose-li:text-gray-700 dark:prose-li:text-gray-300"
+														in:fade={{ duration: 200 }}
+													>
+														<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+														{@html renderMarkdown(detail.subject.body)}
+													</div>
+												{:else}
+													<p
+														class="text-sm text-gray-600 dark:text-gray-400 italic"
+														in:fade={{ duration: 200 }}
+													>
+														{typeConfig?.emptyContentMessage || "No description provided."}
+													</p>
+												{/if}
+											</div>
+										</div>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Timeline Thread - only show for types that support timeline -->
+							{#if timelineController && notification.githubId && typeConfig?.showCommentThread}
+								{#key notification.githubId}
+									<TimelineThread
+										githubId={notification.githubId}
+										{timelineController}
+										subjectType={notification.subjectType}
+										{hasPermissionError}
+										timelineLastSeenAt={notification.timelineLastSeenAt}
+										onUpdateLastSeen={seenHandler(notification.githubId, readerGeneration)}
+										onNewActivityViewed={handleNewActivityViewed}
+									/>
+								{/key}
+							{/if}
+						{/if}
+					</div>
+					{#if supportsReader && notification.githubId}
+						<div
+							id={`${readerId}-whats_new-panel`}
+							role="tabpanel"
+							aria-labelledby={`${readerId}-whats_new-tab`}
+							hidden={activeReaderView !== "whats_new"}
+						>
+							{#key notification.id}
+								<WhatsNewReader
+									githubId={notification.githubId}
+									lastReadAt={readerReadCutoff}
+									lastArchivedAt={readerArchiveCutoff}
+									readerUsername={$githubUsername}
+									selection={$catchUpSelection}
+									active={activeReaderView === "whats_new"}
+									onEntryCounts={handleReaderCounts}
+									{richSummaryTrigger}
+									onShowFullView={showFullView}
+									onRichSummaryRequestHandled={handleRichSummaryRequestHandled}
+									onReady={$catchUpSelection === "last_read"
+										? seenHandler(notification.githubId, readerGeneration)
+										: undefined}
+								/>
+							{/key}
+						</div>
 					{/if}
 				</div>
 			</div>

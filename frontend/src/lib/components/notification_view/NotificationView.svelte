@@ -211,8 +211,8 @@
 	<ApiErrorState errorMessage={apiError} />
 {:else}
 	<section class="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
-		<!-- NotificationViewHeader - always at top, but hidden when detail is open in list mode -->
-		<div class:hidden={!splitModeEnabled && detailOpen}>
+		<!-- Keep catch-up controls available when a single notification is focused. -->
+		<div class="shrink-0">
 			{#if splitModeEnabled || !detailOpen}
 				<NotificationViewHeader
 					bind:this={headerComponent}

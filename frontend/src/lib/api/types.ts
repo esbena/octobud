@@ -353,6 +353,7 @@ export interface TimelineReviewComment {
 	path: string;
 	diffHunk?: string;
 	outdated?: boolean;
+	edited?: boolean;
 	author: { login: string; avatarUrl: string };
 	createdAt?: string;
 	htmlUrl?: string;

@@ -8,13 +8,20 @@
 
 	export let comments: TimelineReviewComment[];
 	export let count: number | undefined = undefined;
+	export let expandedByDefault = false;
+	export let showAllReplies = false;
+	export let contextCommentIds: string[] = [];
+	export let omittedCount = 0;
+	export let omittedBeforeCommentId: string | undefined = undefined;
+	export let highlightNewActivity = false;
 
-	let expanded = false;
+	let expanded = expandedByDefault;
 
 	// visibleCount counts all rendered comments: top-level + their replies
 	$: visibleCount = comments.reduce((sum, c) => sum + 1 + (c.replies?.length ?? 0), 0);
 	$: totalCount = count ?? visibleCount;
 	$: hasMore = totalCount > visibleCount;
+	$: contextIds = new Set(contextCommentIds);
 
 	function getIconPath(iconName: string): string {
 		const icon = octicons[iconName];
@@ -164,11 +171,29 @@
 			{#each comments as comment (comment.id)}
 				{@const avatarUrl = computeAvatarUrl(comment.author.avatarUrl, comment.author.login)}
 				{@const replies = comment.replies ?? []}
-				{@const hasHiddenReplies = replies.length > maxVisibleReplies}
-				<div class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+				{@const visibleReplies = showAllReplies ? replies : replies.slice(-maxVisibleReplies)}
+				{@const hasHiddenReplies = !showAllReplies && replies.length > maxVisibleReplies}
+				{#if omittedBeforeCommentId === comment.id}
+					<p class="text-center text-xs text-gray-500 dark:text-gray-400 py-1">
+						{omittedCount} earlier {omittedCount === 1 ? "comment" : "comments"} omitted
+					</p>
+				{/if}
+				<div
+					role="article"
+					aria-label={`Review comment by ${comment.author.login}`}
+					class={`border rounded-lg overflow-hidden ${
+						highlightNewActivity && !contextIds.has(comment.id)
+							? "border-indigo-400 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20"
+							: "border-gray-200 dark:border-gray-800"
+					}`}
+				>
 					<!-- Header: file path (tinted) -->
 					<div
-						class="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800"
+						class={`flex items-center justify-between px-3 py-2 border-b ${
+							highlightNewActivity && !contextIds.has(comment.id)
+								? "bg-indigo-50/60 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800"
+								: "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-800"
+						}`}
 					>
 						<div class="flex items-center gap-2 min-w-0">
 							<svg
@@ -189,6 +214,9 @@
 									class="text-xs px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 font-medium flex-shrink-0"
 									>Outdated</span
 								>
+							{/if}
+							{#if contextIds.has(comment.id)}
+								<span class="text-xs text-gray-500 dark:text-gray-400">Earlier context</span>
 							{/if}
 						</div>
 						{#if comment.htmlUrl}
@@ -215,7 +243,10 @@
 					{/if}
 
 					<!-- Comment body -->
-					<div class="px-3 py-3">
+					<div
+						class="px-3 py-3"
+						class:opacity-75={highlightNewActivity && contextIds.has(comment.id)}
+					>
 						<!-- Author line -->
 						<div class="flex items-center gap-2 mb-2">
 							<div class="flex-shrink-0">
@@ -238,6 +269,9 @@
 							<span class="text-xs font-semibold text-gray-700 dark:text-gray-300"
 								>{comment.author.login}</span
 							>
+							{#if comment.edited}
+								<span class="text-xs text-gray-500 dark:text-gray-400">Edited</span>
+							{/if}
 							{#if comment.createdAt}
 								<span class="text-xs text-gray-500 dark:text-gray-400"
 									>{formatTimestamp(comment.createdAt)}</span
@@ -273,12 +307,27 @@
 								</div>
 							{/if}
 
-							{#each replies.slice(-maxVisibleReplies) as reply (reply.id)}
+							{#each visibleReplies as reply, replyIndex (reply.id)}
 								{@const replyAvatarUrl = computeAvatarUrl(
 									reply.author.avatarUrl,
 									reply.author.login
 								)}
-								<div class="px-4 py-3 flex gap-2.5">
+								{#if omittedBeforeCommentId === reply.id}
+									<p class="text-center text-xs text-gray-500 dark:text-gray-400 py-1">
+										{omittedCount} earlier {omittedCount === 1 ? "comment" : "comments"} omitted
+									</p>
+								{/if}
+								<div
+									role="article"
+									aria-label={`Review reply by ${reply.author.login}`}
+									class={`px-4 py-3 flex gap-2.5 ${
+										highlightNewActivity && !contextIds.has(reply.id)
+											? "mx-2 my-1 rounded-md border border-indigo-400 dark:border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20"
+											: highlightNewActivity && contextIds.has(reply.id)
+												? "opacity-75"
+												: ""
+									}`}
+								>
 									<div class="flex-shrink-0">
 										{#if replyAvatarUrl}
 											<img
@@ -304,6 +353,12 @@
 											<span class="font-semibold text-gray-700 dark:text-gray-300"
 												>{reply.author.login}</span
 											>
+											{#if reply.edited}
+												<span class="text-gray-500 dark:text-gray-400">Edited</span>
+											{/if}
+											{#if contextIds.has(reply.id)}
+												<span class="text-gray-500 dark:text-gray-400">Earlier context</span>
+											{/if}
 											{#if reply.createdAt}
 												<span>{formatTimestamp(reply.createdAt)}</span>
 											{/if}
@@ -317,7 +372,16 @@
 									</div>
 								</div>
 							{/each}
+							{#if omittedCount > 0 && !omittedBeforeCommentId}
+								<p class="text-center text-xs text-gray-500 dark:text-gray-400 py-1">
+									{omittedCount} earlier {omittedCount === 1 ? "comment" : "comments"} omitted
+								</p>
+							{/if}
 						</div>
+					{:else if omittedCount > 0 && !omittedBeforeCommentId}
+						<p class="text-center text-xs text-gray-500 dark:text-gray-400 py-1">
+							{omittedCount} earlier {omittedCount === 1 ? "comment" : "comments"} omitted
+						</p>
 					{/if}
 				</div>
 			{/each}
