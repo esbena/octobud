@@ -384,7 +384,9 @@ func (s *Store) BulkArchiveNotifications(
 	return s.bulkUpdate(
 		ctx,
 		userID,
-		"archived = 1, snoozed_until = NULL, snoozed_at = NULL, "+
+		"archived = 1, last_archived_at = CASE WHEN archived = 0 "+
+			"THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now') ELSE last_archived_at END, "+
+			"snoozed_until = NULL, snoozed_at = NULL, "+
 			"effective_sort_date = COALESCE(github_updated_at, imported_at)",
 		githubIDs,
 	)
@@ -528,7 +530,9 @@ func (s *Store) BulkArchiveNotificationsByQuery(
 		ctx,
 		s,
 		userID,
-		"archived = 1, snoozed_until = NULL, snoozed_at = NULL, "+
+		"archived = 1, last_archived_at = CASE WHEN archived = 0 "+
+			"THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now') ELSE last_archived_at END, "+
+			"snoozed_until = NULL, snoozed_at = NULL, "+
 			"effective_sort_date = COALESCE(github_updated_at, imported_at)",
 		query,
 	)

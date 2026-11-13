@@ -134,6 +134,8 @@ func TestUpsert_UnarchivesOnNewUpdate(t *testing.T) {
 		// Verify it's archived
 		archivedNotif := c.GetNotification(t, notif.GithubID)
 		require.True(t, archivedNotif.Notification.Archived)
+		require.NotNil(t, archivedNotif.Notification.LastArchivedAt)
+		lastArchivedAt := archivedNotif.Notification.LastArchivedAt
 
 		// Simulate a sync update with a NEW github_updated_at (different from original)
 		newGithubUpdatedAt := time.Now().UTC()
@@ -149,6 +151,8 @@ func TestUpsert_UnarchivesOnNewUpdate(t *testing.T) {
 		// Verify notification is unarchived (new activity detected)
 		updatedNotif := c.GetNotification(t, notif.GithubID)
 		require.False(t, updatedNotif.Notification.Archived, "Notification should be unarchived after new activity")
+		require.NotNil(t, updatedNotif.Notification.LastArchivedAt)
+		require.True(t, updatedNotif.Notification.LastArchivedAt.Equal(*lastArchivedAt))
 	})
 }
 

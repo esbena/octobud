@@ -61,6 +61,7 @@ export interface BackendNotificationResponse {
 	subjectLatestCommentUrl?: string | null;
 	reason?: string | null;
 	archived: boolean;
+	lastArchivedAt?: string | null;
 	isRead: boolean;
 	muted: boolean;
 	starred: boolean;
@@ -152,6 +153,7 @@ export interface Notification {
 	githubReviewers?: BackendUserRef[];
 	githubTeamReviewers?: BackendTeamRef[];
 	effectiveSortDate?: string;
+	lastArchivedAt?: string;
 	timelineLastSeenAt?: string;
 }
 

@@ -60,6 +60,7 @@ type Notification struct {
 	TimelineLastSeenAt      sql.NullString
 	SubjectDraft            sql.NullInt64
 	EnrichmentVersion       int64
+	LastArchivedAt          sql.NullString
 }
 
 type NotificationAssignee struct {

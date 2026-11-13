@@ -13,6 +13,10 @@ UPDATE notifications SET is_read = 0 WHERE user_id = ? AND github_id = ? RETURNI
 -- name: ArchiveNotification :one
 UPDATE notifications 
 SET archived = 1,
+    last_archived_at = CASE
+        WHEN archived = 0 THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+        ELSE last_archived_at
+    END,
     snoozed_until = NULL,
     snoozed_at = NULL,
     effective_sort_date = COALESCE(github_updated_at, imported_at)
