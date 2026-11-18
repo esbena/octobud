@@ -34,6 +34,7 @@ type Notification struct {
 	SubjectLatestCommentURL sql.NullString
 	Reason                  sql.NullString
 	Archived                bool
+	LastArchivedAt          sql.NullTime
 	GithubUnread            sql.NullBool
 	GithubUpdatedAt         sql.NullTime
 	GithubLastReadAt        sql.NullTime

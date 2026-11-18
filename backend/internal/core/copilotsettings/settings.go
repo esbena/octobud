@@ -18,21 +18,16 @@ type Settings struct {
 }
 
 type ActivityHighlights struct {
-	Enabled     bool   `json:"enabled"`
-	DefaultDays int    `json:"defaultDays"`
-	Model       string `json:"model"`
+	Enabled              bool   `json:"enabled"`
+	AutoSummarizeVisible bool   `json:"autoSummarizeVisible"`
+	Model                string `json:"model"`
 }
 
 func Defaults() Settings {
-	return Settings{ActivityHighlights: ActivityHighlights{DefaultDays: 3, Model: "gpt-6-luna"}}
+	return Settings{ActivityHighlights: ActivityHighlights{Model: "gpt-6-luna"}}
 }
 
 func (s Settings) Validate() error {
-	switch s.ActivityHighlights.DefaultDays {
-	case 1, 3, 7, 14, 30:
-	default:
-		return errors.New("defaultDays must be 1, 3, 7, 14 or 30")
-	}
 	model := s.ActivityHighlights.Model
 	if strings.TrimSpace(model) == "" || model != strings.TrimSpace(model) || len(model) > 128 {
 		return errors.New(

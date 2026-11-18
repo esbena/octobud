@@ -34,6 +34,7 @@ type Notification struct {
 	SubjectLatestCommentURL *string         `json:"subjectLatestCommentUrl,omitempty"`
 	Reason                  *string         `json:"reason,omitempty"`
 	Archived                bool            `json:"archived"`
+	LastArchivedAt          *time.Time      `json:"lastArchivedAt,omitempty"`
 	IsRead                  bool            `json:"isRead"`
 	Muted                   bool            `json:"muted"`
 	SnoozedUntil            *time.Time      `json:"snoozedUntil,omitempty"`
@@ -107,6 +108,7 @@ func NotificationFromDB(notification db.Notification) Notification {
 		SubjectLatestCommentURL: NullStringPtr(notification.SubjectLatestCommentURL),
 		Reason:                  NullStringPtr(notification.Reason),
 		Archived:                notification.Archived,
+		LastArchivedAt:          NullTimePtr(notification.LastArchivedAt),
 		IsRead:                  notification.IsRead,
 		Muted:                   notification.Muted,
 		SnoozedUntil:            NullTimePtr(notification.SnoozedUntil),

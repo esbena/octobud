@@ -7,7 +7,7 @@ afterEach(cleanup);
 const brief: ActivityBriefEntry = {
 	notificationId: "1",
 	version: "2026-11-10T12:00:00Z",
-	days: 3,
+	selection: "past_7_days",
 	status: "ready",
 	since: "2026-11-07T12:00:00Z",
 	updatedAt: "2026-11-10T12:00:00Z",
@@ -24,7 +24,7 @@ const brief: ActivityBriefEntry = {
 it("renders recipient groups with directed requests first and visually emphasized", () => {
 	render(ActivityBrief, { props: { brief, compact: true } });
 	expect(screen.getByText("Activity highlights")).toBeInTheDocument();
-	expect(screen.getByText("Last 3 days")).toBeInTheDocument();
+	expect(screen.getByText("Past 7 days")).toBeInTheDocument();
 	expect(screen.getByText("For you")).toHaveClass("font-semibold", "text-indigo-700");
 	expect(screen.getByText("For you").parentElement).toHaveClass("bg-indigo-50/80");
 	expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual(
@@ -48,7 +48,7 @@ it("keeps window and coverage limitations available without crowding the highlig
 	expect(disclosure.closest("details")).not.toHaveAttribute("open");
 	await fireEvent.click(disclosure);
 	expect(disclosure.closest("details")).toHaveAttribute("open");
-	expect(screen.getByText(/Not an archive baseline/)).toBeVisible();
+	expect(screen.getByText(/not an archive baseline/)).toBeVisible();
 	expect(screen.getByText("History truncated.")).toBeVisible();
 });
 
@@ -61,7 +61,7 @@ it("distinguishes no selected highlights from no activity or no action", () => {
 it("keeps empty cached results to one quiet line in notification cards", () => {
 	render(ActivityBrief, { props: { brief: { ...brief, bullets: [] }, compact: true } });
 	expect(screen.getByText("No highlights selected")).toBeInTheDocument();
-	expect(screen.getByText("Last 3 days")).toBeInTheDocument();
+	expect(screen.getByText("Past 7 days")).toBeInTheDocument();
 	expect(screen.queryByText("No highlights selected for this window.")).not.toBeInTheDocument();
 });
 

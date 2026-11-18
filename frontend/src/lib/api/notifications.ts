@@ -101,6 +101,7 @@ const fromBackendNotification = (notification: BackendNotificationResponse): Not
 		subjectType: normalizeSubjectType(notification.subjectType),
 		reason: notification.reason ?? "unspecified",
 		archived: notification.archived,
+		lastArchivedAt: notification.lastArchivedAt ?? undefined,
 		isRead: notification.isRead,
 		muted: notification.muted,
 		starred: notification.starred,

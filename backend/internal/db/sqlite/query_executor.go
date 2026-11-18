@@ -40,6 +40,7 @@ func notificationColumns(includeSubject bool) string {
 		"n.subject_latest_comment_url",
 		"n.reason",
 		"n.archived",
+		"n.last_archived_at",
 		"n.github_unread",
 		"n.github_updated_at",
 		"n.github_last_read_at",
@@ -61,12 +62,13 @@ func notificationColumns(includeSubject bool) string {
 		"n.subject_state",
 		"n.subject_merged",
 		"n.subject_state_reason",
+		"n.timeline_last_seen_at",
 		"n.subject_draft",
 	}
 
 	if includeSubject {
 		// Insert subject_raw after payload
-		columns = append(columns[:18], append([]string{"n.subject_raw"}, columns[18:]...)...)
+		columns = append(columns[:19], append([]string{"n.subject_raw"}, columns[19:]...)...)
 	}
 
 	return "SELECT " + strings.Join(columns, ", ") + " FROM notifications n"
@@ -209,6 +211,7 @@ func listNotificationsFromQuery(
 			&n.SubjectLatestCommentUrl,
 			&n.Reason,
 			&n.Archived,
+			&n.LastArchivedAt,
 			&n.GithubUnread,
 			&n.GithubUpdatedAt,
 			&n.GithubLastReadAt,
@@ -230,14 +233,15 @@ func listNotificationsFromQuery(
 			&n.SubjectState,
 			&n.SubjectMerged,
 			&n.SubjectStateReason,
+			&n.TimelineLastSeenAt,
 			&n.SubjectDraft,
 		}
 
 		// For convenience, add subject_raw if requested
 		if query.IncludeSubject {
 			scanColumns = append(
-				scanColumns[:18],
-				append([]any{&n.SubjectRaw}, scanColumns[18:]...)...)
+				scanColumns[:19],
+				append([]any{&n.SubjectRaw}, scanColumns[19:]...)...)
 		}
 
 		if scanErr := rows.Scan(scanColumns...); scanErr != nil {

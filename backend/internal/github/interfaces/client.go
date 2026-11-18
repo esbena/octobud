@@ -49,6 +49,8 @@ type Client interface {
 		unreadOnly bool,
 	) ([]types.NotificationThread, error)
 	FetchSubjectRaw(ctx context.Context, subjectURL string) (json.RawMessage, error)
+	// FetchOpeningPost returns the original post with its actual body-edit timestamp.
+	FetchOpeningPost(ctx context.Context, owner, repo string, number int, discussion bool) (types.TimelineEvent, error)
 	// FetchTimeline retrieves timeline events for an issue or pull request using REST API.
 	// Returns the events on the requested page, plus the last page number parsed from
 	// the Link response header (1 if no Link header / single page).
@@ -90,6 +92,13 @@ type Client interface {
 		number, first int,
 		after string,
 	) ([]types.TimelineEvent, bool, string, error)
+	// FetchDiscussionReplies returns older replies before the supplied cursor.
+	FetchDiscussionReplies(
+		ctx context.Context,
+		commentID string,
+		last int,
+		before string,
+	) ([]types.DiscussionReplyData, bool, string, error)
 	// FetchRateLimit retrieves the current GitHub API rate-limit status. This
 	// endpoint does not itself count against the rate limit, so it's safe to
 	// call on demand (e.g. from a diagnostics page).

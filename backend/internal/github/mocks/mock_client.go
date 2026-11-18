@@ -61,6 +61,23 @@ func (mr *MockClientMockRecorder) FetchDiscussionComments(ctx, owner, repo, numb
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchDiscussionComments", reflect.TypeOf((*MockClient)(nil).FetchDiscussionComments), ctx, owner, repo, number, first, after)
 }
 
+// FetchDiscussionReplies mocks base method.
+func (m *MockClient) FetchDiscussionReplies(ctx context.Context, commentID string, last int, before string) ([]types.DiscussionReplyData, bool, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchDiscussionReplies", ctx, commentID, last, before)
+	ret0, _ := ret[0].([]types.DiscussionReplyData)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(string)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+// FetchDiscussionReplies indicates an expected call of FetchDiscussionReplies.
+func (mr *MockClientMockRecorder) FetchDiscussionReplies(ctx, commentID, last, before any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchDiscussionReplies", reflect.TypeOf((*MockClient)(nil).FetchDiscussionReplies), ctx, commentID, last, before)
+}
+
 // FetchIssueComments mocks base method.
 func (m *MockClient) FetchIssueComments(ctx context.Context, owner, repo string, number, perPage, page int) ([]types.IssueComment, error) {
 	m.ctrl.T.Helper()
@@ -89,6 +106,21 @@ func (m *MockClient) FetchNotifications(ctx context.Context, since, before *time
 func (mr *MockClientMockRecorder) FetchNotifications(ctx, since, before, unreadOnly any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNotifications", reflect.TypeOf((*MockClient)(nil).FetchNotifications), ctx, since, before, unreadOnly)
+}
+
+// FetchOpeningPost mocks base method.
+func (m *MockClient) FetchOpeningPost(ctx context.Context, owner, repo string, number int, discussion bool) (types.TimelineEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchOpeningPost", ctx, owner, repo, number, discussion)
+	ret0, _ := ret[0].(types.TimelineEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchOpeningPost indicates an expected call of FetchOpeningPost.
+func (mr *MockClientMockRecorder) FetchOpeningPost(ctx, owner, repo, number, discussion any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOpeningPost", reflect.TypeOf((*MockClient)(nil).FetchOpeningPost), ctx, owner, repo, number, discussion)
 }
 
 // FetchPRCommits mocks base method.

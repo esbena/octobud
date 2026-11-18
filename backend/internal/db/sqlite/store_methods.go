@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/octobud-hq/octobud/backend/internal/db"
 )
@@ -300,17 +301,48 @@ func (s *Store) MarkNotificationUnfiltered(
 	return s.toDBNotification(ctx, userID, n), nil
 }
 
-// UpdateTimelineLastSeenAt updates the timeline last seen timestamp for a notification.
+// UpdateTimelineLastSeenAt advances, but never regresses, a notification's seen timestamp.
 func (s *Store) UpdateTimelineLastSeenAt(
 	ctx context.Context,
 	userID, githubID, timestamp string,
 ) (db.Notification, error) {
+	incoming, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return db.Notification{}, fmt.Errorf("parse timeline seen timestamp: %w", err)
+	}
 	n, err := db.RetryOnBusy(ctx, func() (Notification, error) {
-		return s.q.UpdateTimelineLastSeenAt(ctx, UpdateTimelineLastSeenAtParams{
-			TimelineLastSeenAt: sql.NullString{String: timestamp, Valid: timestamp != ""},
+		tx, err := s.dbConn.BeginTx(ctx, nil)
+		if err != nil {
+			return Notification{}, err
+		}
+		defer tx.Rollback() //nolint:errcheck
+		queries := s.q.WithTx(tx)
+		current, err := queries.GetNotificationByGithubID(ctx, GetNotificationByGithubIDParams{
+			UserID: userID, GithubID: githubID,
+		})
+		if err != nil {
+			return Notification{}, err
+		}
+		if current.TimelineLastSeenAt.Valid {
+			previous, err := time.Parse(time.RFC3339, current.TimelineLastSeenAt.String)
+			if err != nil {
+				return Notification{}, fmt.Errorf("parse stored timeline seen timestamp: %w", err)
+			}
+			if !incoming.After(previous) {
+				return current, tx.Commit()
+			}
+		}
+		// Compare instants in Go, not SQLite's lower-precision date functions.
+		// A concurrent writer invalidates this snapshot; retry the entire transaction.
+		updated, err := queries.UpdateTimelineLastSeenAt(ctx, UpdateTimelineLastSeenAtParams{
+			TimelineLastSeenAt: sql.NullString{String: timestamp, Valid: true},
 			UserID:             userID,
 			GithubID:           githubID,
 		})
+		if err != nil {
+			return Notification{}, err
+		}
+		return updated, tx.Commit()
 	})
 	if err != nil {
 		return db.Notification{}, err
@@ -384,7 +416,9 @@ func (s *Store) BulkArchiveNotifications(
 	return s.bulkUpdate(
 		ctx,
 		userID,
-		"archived = 1, snoozed_until = NULL, snoozed_at = NULL, "+
+		"archived = 1, last_archived_at = CASE WHEN archived = 0 "+
+			"THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now') ELSE last_archived_at END, "+
+			"snoozed_until = NULL, snoozed_at = NULL, "+
 			"effective_sort_date = COALESCE(github_updated_at, imported_at)",
 		githubIDs,
 	)
@@ -528,7 +562,9 @@ func (s *Store) BulkArchiveNotificationsByQuery(
 		ctx,
 		s,
 		userID,
-		"archived = 1, snoozed_until = NULL, snoozed_at = NULL, "+
+		"archived = 1, last_archived_at = CASE WHEN archived = 0 "+
+			"THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now') ELSE last_archived_at END, "+
+			"snoozed_until = NULL, snoozed_at = NULL, "+
 			"effective_sort_date = COALESCE(github_updated_at, imported_at)",
 		query,
 	)

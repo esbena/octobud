@@ -13,9 +13,17 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+// @vitest-environment jsdom
+
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 vi.mock("$app/environment", () => ({ browser: true }));
+const storage = new Map<string, string>();
+vi.stubGlobal("localStorage", {
+	clear: () => storage.clear(),
+	getItem: (key: string) => storage.get(key) ?? null,
+	setItem: (key: string, value: string) => storage.set(key, value),
+});
 import {
 	createNotificationSettingsStore,
 	isNotificationEnabled,
@@ -35,6 +43,40 @@ describe("NotificationSettings Store", () => {
 	});
 
 	describe("createNotificationSettingsStore", () => {
+		it("keeps the What's new default opt-in and persists the preference", () => {
+			const store = createNotificationSettingsStore();
+			expect(get(store.whatsNewDefault)).toBe(false);
+			store.setWhatsNewDefault(true);
+			expect(localStorage.getItem("octobud:timeline:whatsNewDefault")).toBe("true");
+			expect(get(createNotificationSettingsStore().whatsNewDefault)).toBe(true);
+			store.setWhatsNewDefault(false);
+			expect(get(createNotificationSettingsStore().whatsNewDefault)).toBe(false);
+		});
+
+		it("synchronizes the What's new preference from storage", () => {
+			const store = createNotificationSettingsStore();
+			localStorage.setItem("octobud:timeline:whatsNewDefault", "true");
+			store.syncFromStorage();
+			expect(get(store.whatsNewDefault)).toBe(true);
+		});
+
+		it("defaults the What's new baseline to last read and persists the archive choice", () => {
+			const store = createNotificationSettingsStore();
+			expect(get(store.whatsNewBaseline)).toBe("last_read");
+			store.setWhatsNewBaseline("last_archive");
+			expect(get(store.catchUpSelection)).toBe("last_archive");
+			expect(localStorage.getItem("octobud:timeline:whatsNewBaseline")).toBe("last_archive");
+			expect(get(createNotificationSettingsStore().whatsNewBaseline)).toBe("last_archive");
+			store.setWhatsNewBaseline("today");
+			expect(localStorage.getItem("octobud:timeline:whatsNewBaseline")).toBe("today");
+			expect(get(createNotificationSettingsStore().whatsNewBaseline)).toBe("today");
+		});
+
+		it("falls back to last read for an invalid saved What's new baseline", () => {
+			localStorage.setItem("octobud:timeline:whatsNewBaseline", "unsupported");
+			expect(get(createNotificationSettingsStore().whatsNewBaseline)).toBe("last_read");
+		});
+
 		it("keeps total counts opt-in and persists both enabled and disabled states", () => {
 			const store = createNotificationSettingsStore();
 			expect(get(store.showTotalCounts)).toBe(false);

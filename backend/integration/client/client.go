@@ -55,6 +55,7 @@ type Notification struct {
 	SubjectTitle      string     `json:"subjectTitle"`
 	Reason            *string    `json:"reason,omitempty"`
 	Archived          bool       `json:"archived"`
+	LastArchivedAt    *time.Time `json:"lastArchivedAt,omitempty"`
 	IsRead            bool       `json:"isRead"`
 	Muted             bool       `json:"muted"`
 	Starred           bool       `json:"starred"`

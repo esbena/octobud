@@ -14,7 +14,7 @@
 	// You should have received a copy of the GNU Affero General Public License
 	// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-	import { getContext, tick } from "svelte";
+	import { getContext, onMount, tick } from "svelte";
 	import type { Notification } from "$lib/api/types";
 	import { getNotificationIcon, getStatusBarColor } from "$lib/utils/notificationIcons";
 	import {
@@ -31,22 +31,33 @@
 	import TagDropdown from "$lib/components/shared/TagDropdown.svelte";
 	import ActivityBrief from "$lib/components/shared/ActivityBrief.svelte";
 	import ActivityBriefButton from "$lib/components/shared/ActivityBriefButton.svelte";
-	import {
-		activityBriefDays,
-		activityBriefEntries,
-		matchingActivityBrief,
-	} from "$lib/stores/activityBriefs";
+	import { activityBriefEntries, matchingActivityBrief } from "$lib/stores/activityBriefs";
+	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
+	import { getWhatsNewCutoff } from "$lib/utils/whatsNewCutoff";
+	import type { SnoozeDropdownComponent, TagDropdownComponent } from "$lib/types/components";
+	const { hoverActionsEnabled, catchUpSelection } = getNotificationSettingsStore();
+	onMount(() => {
+		if (!rootElement || typeof IntersectionObserver === "undefined") return;
+		const observer = new IntersectionObserver(([entry]) => {
+			rowVisible = entry.isIntersecting;
+		});
+		observer.observe(rootElement);
+		return () => observer.disconnect();
+	});
 	$: activityBrief = matchingActivityBrief(
 		$activityBriefEntries,
 		notification.githubId,
 		notification.effectiveSortDate,
-		$activityBriefDays
+		$catchUpSelection,
+		getWhatsNewCutoff(
+			$catchUpSelection,
+			notification.timelineLastSeenAt ?? null,
+			notification.lastArchivedAt ?? null
+		)
 	);
 	import type { NotificationPageController } from "$lib/state/types";
 	import { formatSnoozeMessage } from "$lib/utils/snoozeFormat";
 	import { currentTime } from "$lib/stores/timeStore";
-	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
-	import type { SnoozeDropdownComponent, TagDropdownComponent } from "$lib/types/components";
 
 	// Subscribe to time store to trigger re-renders when time updates
 	// This ensures relative timestamps for same-day notifications stay fresh
@@ -55,8 +66,6 @@
 
 	// Get page controller from context
 	const pageController = getContext<NotificationPageController>("notificationPageController");
-	const { hoverActionsEnabled } = getNotificationSettingsStore();
-
 	// Extract stores for reactivity
 	const {
 		pageData,
@@ -73,6 +82,7 @@
 	export let isDetailOpen = false; // Whether this notification is currently open in detail view
 
 	let rootElement: HTMLDivElement | null = null;
+	let rowVisible = false;
 	let snoozeButtonElement: HTMLButtonElement | null = null;
 	let snoozeDropdownComponent: SnoozeDropdownComponent | null = null;
 	let tagButtonElement: HTMLButtonElement | null = null;
@@ -612,7 +622,7 @@
 					: 'invisible opacity-0 pointer-events-none'}"
 		>
 			<div class="{buttonGroupBg} rounded-full p-0.5 flex items-center gap-0.5 shadow-lg">
-				<ActivityBriefButton {notification} />
+				<ActivityBriefButton {notification} autoSummarizeOnVisible autoVisible={rowVisible} />
 				{#if subjectLink}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 					<a

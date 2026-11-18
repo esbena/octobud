@@ -195,6 +195,7 @@ func (s *Store) toDBNotification(
 		SubjectLatestCommentURL: n.SubjectLatestCommentUrl,
 		Reason:                  n.Reason,
 		Archived:                toBool(n.Archived),
+		LastArchivedAt:          parseNullTime(n.LastArchivedAt),
 		GithubUnread:            toNullBool(n.GithubUnread),
 		GithubUpdatedAt:         parseNullTime(n.GithubUpdatedAt),
 		GithubLastReadAt:        parseNullTime(n.GithubLastReadAt),

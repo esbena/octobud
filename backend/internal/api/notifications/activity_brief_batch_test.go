@@ -19,6 +19,13 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func briefQueueTestKey(user, id string) activitybrief.Key {
+	return activitybrief.Key{
+		UserID: user, NotificationID: id, Selection: "past_7_days",
+		Since: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC),
+	}
+}
+
 func TestIndividualActivityBriefUsesSharedQueueAndCache(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
 	handler.withActivityBriefs(briefModel(nil))
@@ -29,7 +36,8 @@ func TestIndividualActivityBriefUsesSharedQueueAndCache(t *testing.T) {
 		GithubID: "selected", SubjectType: "Issue", EffectiveSortDate: at,
 	}, nil).Times(2)
 	_, err := handler.briefQueue.Enqueue(activitybrief.Key{
-		UserID: "owner", NotificationID: "selected", Version: at.Format(time.RFC3339Nano), Days: 7,
+		UserID: "owner", NotificationID: "selected", Version: at.Format(time.RFC3339Nano),
+		Selection: "past_7_days", Since: at.Add(-7 * 24 * time.Hour),
 	}, func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
 		<-ctx.Done()
 		return activitybrief.Result{}, ctx.Err()
@@ -37,7 +45,7 @@ func TestIndividualActivityBriefUsesSharedQueueAndCache(t *testing.T) {
 	require.NoError(t, err)
 	for range 2 {
 		response := httptest.NewRecorder()
-		handler.handleActivityBriefBatch(response, briefRequest(`{"notificationId":"selected","days":7}`))
+		handler.handleActivityBriefBatch(response, briefRequest(`{"notificationId":"selected","selection":"past_7_days","timeZone":"UTC"}`))
 		require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
 		var status briefStatusResponse
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
@@ -53,7 +61,7 @@ func TestIndividualActivityBriefQueuesOnlySelectedNotification(t *testing.T) {
 	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
 	started := make(chan struct{}, 10)
 	for i := range 10 {
-		_, err := handler.briefQueue.Enqueue(activitybrief.Key{UserID: "blocker", NotificationID: fmt.Sprint(i)},
+		_, err := handler.briefQueue.Enqueue(briefQueueTestKey("blocker", fmt.Sprint(i)),
 			func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
 				started <- struct{}{}
 				<-ctx.Done()
@@ -67,15 +75,57 @@ func TestIndividualActivityBriefQueuesOnlySelectedNotification(t *testing.T) {
 		GithubID: "selected", SubjectType: "Issue", EffectiveSortDate: at,
 	}, nil)
 	response := httptest.NewRecorder()
-	handler.handleActivityBriefBatch(response, briefRequest(`{"notificationId":"selected","days":7}`))
+	handler.handleActivityBriefBatch(response, briefRequest(`{"notificationId":"selected","selection":"past_7_days","timeZone":"UTC"}`))
 	require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
 	var status briefStatusResponse
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
 	require.Equal(t, 1, status.Queued)
 	require.Len(t, status.Entries, 1)
 	require.Equal(t, "selected", status.Entries[0].NotificationID)
-	require.Equal(t, 7, status.Entries[0].Days)
+	require.Equal(t, "past_7_days", status.Entries[0].Selection)
 	require.Equal(t, at.Format(time.RFC3339Nano), status.Entries[0].Version)
+}
+
+func TestIndividualActivityBriefUsesRequestedCutoff(t *testing.T) {
+	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
+	handler.withActivityBriefs(briefModel(nil))
+	configureBriefTestSettings(t, handler, true)
+	auth.EXPECT().GetUser(gomock.Any()).Return(
+		&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil,
+	).AnyTimes()
+	now := time.Now().UTC().Truncate(time.Second)
+	since := now.Add(-24 * time.Hour)
+	notifications.EXPECT().GetByGithubID(gomock.Any(), "owner", "selected").Return(db.Notification{
+		GithubID: "selected", SubjectType: "Issue", EffectiveSortDate: now,
+	}, nil).Times(1)
+	key := activitybrief.Key{
+		UserID: "owner", NotificationID: "selected", Version: now.Format(time.RFC3339Nano),
+		Selection: "last_read", Since: since,
+	}
+	started := make(chan struct{})
+	_, err := handler.briefQueue.Enqueue(key, func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
+		close(started)
+		<-ctx.Done()
+		return activitybrief.Result{}, ctx.Err()
+	})
+	require.NoError(t, err)
+	<-started
+	t.Cleanup(func() { handler.briefQueue.Stop("owner") })
+	response := httptest.NewRecorder()
+	body, err := json.Marshal(map[string]any{
+		"notificationId": "selected",
+		"selection":      "last_read",
+		"timeZone":       "UTC",
+		"since":          since,
+	})
+	require.NoError(t, err)
+	handler.handleActivityBriefBatch(response, briefRequest(string(body)))
+	require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
+	var status briefStatusResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
+	require.Len(t, status.Entries, 1)
+	require.Equal(t, since, status.Entries[0].Since)
+	require.Zero(t, status.Queued)
 }
 
 func TestIndividualActivityBriefRejectsMissingNotificationAndMixedScope(t *testing.T) {
@@ -88,8 +138,8 @@ func TestIndividualActivityBriefRejectsMissingNotificationAndMixedScope(t *testi
 		body   string
 		status int
 	}{
-		{`{"notificationId":"missing","days":3}`, http.StatusNotFound},
-		{`{"notificationId":"selected","query":"in:inbox","days":3}`, http.StatusBadRequest},
+		{`{"notificationId":"missing","selection":"past_7_days","timeZone":"UTC"}`, http.StatusNotFound},
+		{`{"notificationId":"selected","query":"in:inbox","selection":"past_7_days","timeZone":"UTC"}`, http.StatusBadRequest},
 	} {
 		response := httptest.NewRecorder()
 		handler.handleActivityBriefBatch(response, briefRequest(test.body))
@@ -114,7 +164,9 @@ func TestBatchFillsGapsAcrossPagesAndRepeatedClicksExtendQueue(t *testing.T) {
 	for i := range items {
 		items[i] = models.Notification{GithubID: fmt.Sprint(i), SubjectType: "PullRequest", EffectiveSortDate: at}
 		if i < 100 && i != 7 {
-			_, err := queue.Enqueue(activitybrief.Key{UserID: "owner", NotificationID: fmt.Sprint(i), Days: 3, Version: version},
+			key := briefQueueTestKey("owner", fmt.Sprint(i))
+			key.Version = version
+			_, err := queue.Enqueue(key,
 				func(context.Context, time.Time) (activitybrief.Result, error) { return activitybrief.Result{}, nil })
 			require.NoError(t, err)
 		}
@@ -129,7 +181,7 @@ func TestBatchFillsGapsAcrossPagesAndRepeatedClicksExtendQueue(t *testing.T) {
 	}, time.Second, time.Millisecond)
 	started := make(chan struct{}, 10)
 	for i := 0; i < 10; i++ {
-		_, err := queue.Enqueue(activitybrief.Key{UserID: "blocker", NotificationID: fmt.Sprint(i)}, func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
+		_, err := queue.Enqueue(briefQueueTestKey("blocker", fmt.Sprint(i)), func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
 			started <- struct{}{}
 			<-ctx.Done()
 			return activitybrief.Result{}, ctx.Err()
@@ -145,7 +197,7 @@ func TestBatchFillsGapsAcrossPagesAndRepeatedClicksExtendQueue(t *testing.T) {
 	}
 	for click := 0; click < 2; click++ {
 		response := httptest.NewRecorder()
-		handler.handleActivityBriefBatch(response, briefRequest(`{"query":"is:unarchived","repositoryIds":[42],"days":3}`))
+		handler.handleActivityBriefBatch(response, briefRequest(`{"query":"is:unarchived","repositoryIds":[42],"selection":"past_7_days","timeZone":"UTC"}`))
 		require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
 		var status briefStatusResponse
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
@@ -179,6 +231,46 @@ func TestBatchStatusReadDoesNotFetchOrSummarize(t *testing.T) {
 	require.Empty(t, status.Entries)
 }
 
+func TestBatchQueuesAllHistoryForNotificationsWithoutAReadCheckpoint(t *testing.T) {
+	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
+	handler.withActivityBriefs(briefModel(nil))
+	t.Cleanup(handler.briefQueue.Close)
+	started := make(chan struct{}, 10)
+	for i := range 10 {
+		_, err := handler.briefQueue.Enqueue(briefQueueTestKey("blocker", fmt.Sprint(i)),
+			func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
+				started <- struct{}{}
+				<-ctx.Done()
+				return activitybrief.Result{}, ctx.Err()
+			})
+		require.NoError(t, err)
+	}
+	require.Eventually(t, func() bool { return len(started) == 10 }, time.Second, time.Millisecond)
+	configureBriefTestSettings(t, handler, true)
+	auth.EXPECT().GetUser(gomock.Any()).Return(
+		&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil,
+	).AnyTimes()
+	notifications.EXPECT().ListNotifications(gomock.Any(), "owner", gomock.Any()).Return(
+		models.ListDetailsResult{
+			Notifications: []models.Notification{{GithubID: "one", SubjectType: "Issue"}},
+			Total:         1, Page: 1, PageSize: 100,
+		},
+		nil,
+	)
+	response := httptest.NewRecorder()
+	handler.handleActivityBriefBatch(
+		response,
+		briefRequest(`{"query":"in:inbox","selection":"last_read","timeZone":"UTC"}`),
+	)
+	require.Equal(t, http.StatusAccepted, response.Code)
+	var status briefStatusResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
+	require.Equal(t, 1, status.Queued)
+	require.Zero(t, status.Skipped)
+	require.Len(t, status.Entries, 1)
+	require.Equal(t, time.Unix(0, 0).UTC(), status.Entries[0].Since)
+}
+
 func TestBatchReportsAlreadyQueuedJobsWhenLaterPageFails(t *testing.T) {
 	handler, notifications, _, auth := setupTestHandler(gomock.NewController(t))
 	handler.withActivityBriefs(briefModel(nil))
@@ -187,7 +279,7 @@ func TestBatchReportsAlreadyQueuedJobsWhenLaterPageFails(t *testing.T) {
 	auth.EXPECT().GetUser(gomock.Any()).Return(&models.User{GithubUserID: "owner", GithubUsername: "reader"}, nil).AnyTimes()
 	started := make(chan struct{}, 10)
 	for i := 0; i < 10; i++ {
-		_, err := handler.briefQueue.Enqueue(activitybrief.Key{UserID: "blocker", NotificationID: fmt.Sprint(i)},
+		_, err := handler.briefQueue.Enqueue(briefQueueTestKey("blocker", fmt.Sprint(i)),
 			func(ctx context.Context, _ time.Time) (activitybrief.Result, error) {
 				started <- struct{}{}
 				<-ctx.Done()
@@ -202,7 +294,7 @@ func TestBatchReportsAlreadyQueuedJobsWhenLaterPageFails(t *testing.T) {
 	}, nil)
 	notifications.EXPECT().ListNotifications(gomock.Any(), "owner", gomock.Any()).Return(models.ListDetailsResult{}, errors.New("database interrupted"))
 	response := httptest.NewRecorder()
-	handler.handleActivityBriefBatch(response, briefRequest(`{"query":"in:inbox","days":3}`))
+	handler.handleActivityBriefBatch(response, briefRequest(`{"query":"in:inbox","selection":"past_7_days","timeZone":"UTC"}`))
 	require.Equal(t, http.StatusAccepted, response.Code)
 	var status briefStatusResponse
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &status))
@@ -213,7 +305,12 @@ func TestBatchReportsAlreadyQueuedJobsWhenLaterPageFails(t *testing.T) {
 }
 
 func TestBatchRejectsInvalidHorizonsAndTrailingDataWithoutWork(t *testing.T) {
-	for _, body := range []string{`{"days":0}`, `{"days":2}`, `{"days":3000}`, `{"days":3,"limit":1000}`, `{"days":3} {}`} {
+	for _, body := range []string{
+		`{"selection":"invalid","timeZone":"UTC"}`,
+		`{"selection":"past_7_days","timeZone":"Invalid/Zone"}`,
+		`{"selection":"past_7_days","timeZone":"UTC","limit":1000}`,
+		`{"selection":"past_7_days","timeZone":"UTC"} {}`,
+	} {
 		t.Run(body, func(t *testing.T) {
 			handler, _, _, auth := setupTestHandler(gomock.NewController(t))
 			handler.withActivityBriefs(briefModel(func(context.Context, activitybrief.Snapshot) ([]activitybrief.Bullet, error) {

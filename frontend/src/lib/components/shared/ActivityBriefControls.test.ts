@@ -3,16 +3,23 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import { writable, get } from "svelte/store";
 import ActivityBriefControls from "./ActivityBriefControls.svelte";
 import { activityBriefRequest, type ActivityBriefStatus } from "$lib/api/activityBriefs";
-import { activityBriefDays, activityBriefEntries } from "$lib/stores/activityBriefs";
+import { activityBriefEntries } from "$lib/stores/activityBriefs";
+import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
 
 vi.mock("$lib/api/activityBriefs", () => ({ activityBriefRequest: vi.fn() }));
-const status: ActivityBriefStatus = { enabled: true, entries: [], queued: 0, defaultDays: 3 };
+const status: ActivityBriefStatus = {
+	enabled: true,
+	autoSummarize: false,
+	entries: [],
+	queued: 0,
+	skipped: 0,
+};
 
 afterEach(() => {
 	cleanup();
 	vi.clearAllMocks();
 	vi.useRealTimers();
-	activityBriefDays.set(3);
+	getNotificationSettingsStore().setCatchUpSelection("last_read");
 	activityBriefEntries.set([]);
 });
 
@@ -20,7 +27,7 @@ it("does not overwrite a newer batch response with a slow older status poll", as
 	vi.useFakeTimers();
 	setup();
 	await vi.advanceTimersByTimeAsync(0);
-	const button = screen.getByRole("button", { name: "Summarize 10 more" });
+	const button = screen.getByRole("button", { name: "Summarize next batch" });
 	expect(button).toBeEnabled();
 	let completePoll!: (value: ActivityBriefStatus) => void;
 	vi.mocked(activityBriefRequest).mockImplementationOnce(
@@ -37,7 +44,7 @@ it("does not overwrite a newer batch response with a slow older status poll", as
 			{
 				notificationId: "new",
 				version: "v1",
-				days: 3,
+				selection: "last_read",
 				since: "",
 				updatedAt: "",
 				status: "queued",
@@ -65,26 +72,28 @@ function setup(initialStatus: ActivityBriefStatus = status) {
 	return pageData;
 }
 
-it("uses the persisted default lookback without generating summaries", async () => {
-	setup({ ...status, defaultDays: 14 });
-	await waitFor(() => expect(get(activityBriefDays)).toBe(14));
+it("uses the shared catch-up selection without generating summaries", async () => {
+	setup();
+	expect(get(getNotificationSettingsStore().catchUpSelection)).toBe("last_read");
+	expect(screen.getByRole("group", { name: "Activity window" })).toBeInTheDocument();
 	expect(activityBriefRequest).toHaveBeenCalledExactlyOnceWith("status", undefined);
 });
 
-it("only reads cache on mount or horizon change; clicks use the submitted view scope", async () => {
+it("only reads cache on mount; clicks use the selected range and submitted view scope", async () => {
 	const pageData = setup();
-	const button = await screen.findByRole("button", { name: "Summarize 10 more" });
+	const button = await screen.findByRole("button", { name: "Summarize next batch" });
 	await waitFor(() => expect(button).toBeEnabled());
 	expect(activityBriefRequest).toHaveBeenCalledExactlyOnceWith("status", undefined);
-	await fireEvent.change(screen.getByRole("combobox"), { target: { value: "7" } });
-	expect(get(activityBriefDays)).toBe(7);
+	await fireEvent.click(screen.getByRole("button", { name: "Past 7 days" }));
+	expect(get(getNotificationSettingsStore().catchUpSelection)).toBe("past_7_days");
 	expect(activityBriefRequest).toHaveBeenCalledTimes(1);
 	await fireEvent.click(button);
 	await waitFor(() =>
 		expect(activityBriefRequest).toHaveBeenCalledWith("batch", {
 			query: "in:inbox tags:engaged",
 			repositoryIds: [42],
-			days: 7,
+			selection: "past_7_days",
+			timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 		})
 	);
 	pageData.set({ queryScope: { query: "in:inbox author:reader", repositoryIds: [99] } });
@@ -92,13 +101,14 @@ it("only reads cache on mount or horizon change; clicks use the submitted view s
 	expect(activityBriefRequest).toHaveBeenLastCalledWith("batch", {
 		query: "in:inbox author:reader",
 		repositoryIds: [99],
-		days: 7,
+		selection: "past_7_days",
+		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 	});
 });
 
 it("surfaces batch errors instead of claiming summaries were generated", async () => {
 	setup();
-	const button = await screen.findByRole("button", { name: "Summarize 10 more" });
+	const button = await screen.findByRole("button", { name: "Summarize next batch" });
 	await waitFor(() => expect(button).toBeEnabled());
 	vi.mocked(activityBriefRequest).mockRejectedValueOnce(new Error("Summary queue is full"));
 	await fireEvent.click(button);
@@ -109,13 +119,13 @@ it("surfaces batch errors instead of claiming summaries were generated", async (
 it("shows pending jobs and stops explicitly without another generation request", async () => {
 	setup();
 	await waitFor(() =>
-		expect(screen.getByRole("button", { name: "Summarize 10 more" })).toBeEnabled()
+		expect(screen.getByRole("button", { name: "Summarize next batch" })).toBeEnabled()
 	);
 	activityBriefEntries.set([
 		{
 			notificationId: "1",
 			version: "v1",
-			days: 3,
+			selection: "last_read",
 			since: "",
 			updatedAt: "",
 			status: "running",
@@ -127,13 +137,13 @@ it("shows pending jobs and stops explicitly without another generation request",
 	expect(screen.getByText("Stopped pending summaries.")).toBeInTheDocument();
 });
 
-it("keeps generation controls out of the way until the feature is enabled", async () => {
+it("keeps the global look-back selector available when summaries are disabled", async () => {
 	setup({ ...status, enabled: false });
-	expect(await screen.findByRole("link", { name: "Set up activity highlights" })).toHaveAttribute(
+	expect(await screen.findByRole("link", { name: "Set up Copilot summaries" })).toHaveAttribute(
 		"href",
 		"/settings#copilot"
 	);
-	expect(screen.queryByRole("button", { name: "Summarize 10 more" })).not.toBeInTheDocument();
-	expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+	expect(screen.queryByRole("button", { name: "Summarize next batch" })).not.toBeInTheDocument();
+	expect(screen.getByRole("group", { name: "Activity window" })).toBeInTheDocument();
 	expect(activityBriefRequest).toHaveBeenCalledExactlyOnceWith("status", undefined);
 });

@@ -158,6 +158,7 @@ type TimelineEvent struct {
 	Replies        []DiscussionReplyData `json:"-"`
 	ReplyCount     int                   `json:"-"`
 	HasMoreReplies bool                  `json:"-"`
+	RepliesCursor  string                `json:"-"`
 }
 
 // SimpleTeam represents a GitHub team in timeline events.

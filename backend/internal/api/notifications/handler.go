@@ -90,6 +90,7 @@ func (h *Handler) Register(r chi.Router) {
 		r.Get("/{githubID}", h.handleGetNotification)
 		r.Get("/{githubID}/timeline", h.handleGetNotificationTimeline)
 		r.Post("/{githubID}/activity-brief", h.handleActivityBrief)
+		r.Post("/{githubID}/whats-new", h.handleWhatsNew)
 		r.Get("/{githubID}/review-comments", h.handleGetReviewComments)
 		r.Get("/{githubID}/pr-commits", h.handleGetPRCommits)
 		r.Post("/{githubID}/refresh-subject", h.handleRefreshNotificationSubject)

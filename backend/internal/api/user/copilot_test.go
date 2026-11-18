@@ -32,7 +32,7 @@ func TestCopilotSettingsDefaultOffRegardlessOfLegacyEnvironment(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code)
 	require.JSONEq(
 		t,
-		`{"enabled":false,"activityHighlights":{"enabled":false,"defaultDays":3,"model":"gpt-6-luna"}}`,
+		`{"enabled":false,"activityHighlights":{"enabled":false,"autoSummarizeVisible":false,"model":"gpt-6-luna"}}`,
 		response.Body.String(),
 	)
 }
@@ -40,7 +40,7 @@ func TestCopilotSettingsDefaultOffRegardlessOfLegacyEnvironment(t *testing.T) {
 func TestCopilotSettingsRejectInvalidRequestsWithoutSaving(t *testing.T) {
 	for _, body := range []string{
 		`{"enabled":true,"token":"not-a-setting"}`,
-		`{"activityHighlights":{"defaultDays":2}}`,
+		`{"activityHighlights":{"autoSummarizeVisible":true,"model":"gpt-6-luna","unknown":true}}`,
 		`{"activityHighlights":{"model":""}}`,
 		`{} {}`,
 	} {

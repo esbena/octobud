@@ -81,8 +81,7 @@
 							>
 							<p class="mt-1 text-xs text-gray-600 dark:text-gray-400">
 								Brief updates for quick triage, with requests for you shown first. Only runs when
-								you click <span class="font-medium">Summarize 10 more</span> or a notification's
-								<span class="font-medium">Summarize activity</span> action.
+								you request them or enable automatic summaries below.
 							</p>
 						</div>
 						<label class="relative flex shrink-0 cursor-pointer items-center">
@@ -97,26 +96,29 @@
 							></div>
 						</label>
 					</div>
-					<div class="grid gap-5 border-t border-gray-200 pt-5 sm:grid-cols-2 dark:border-gray-800">
-						<div class="space-y-2">
-							<label
-								for="activity-default-days"
-								class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-								>Default lookback</label
-							>
-							<select
-								id="activity-default-days"
-								bind:value={settings.activityHighlights.defaultDays}
-								class="h-9 w-full rounded-lg border border-gray-300 bg-white pl-3 pr-8 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
-							>
-								{#each [1, 3, 7, 14, 30] as days}
-									<option value={days}>{days} {days === 1 ? "day" : "days"}</option>
-								{/each}
-							</select>
-							<p class="text-xs text-gray-500 dark:text-gray-400">
-								Adjustable in each view; not an archive baseline.
+					<div class="flex items-center justify-between gap-6 border-t border-gray-200 pt-5 dark:border-gray-800">
+						<div>
+							<label for="activity-auto-visible" class="font-medium text-gray-900 dark:text-gray-100">
+								Automatically summarize visible notifications
+							</label>
+							<p class="mt-1 text-xs text-gray-600 dark:text-gray-400">
+								Queue a summary when a supported notification enters the list viewport. Uses the
+								current catch-up range.
 							</p>
 						</div>
+						<label class="relative flex shrink-0 cursor-pointer items-center">
+							<input
+								id="activity-auto-visible"
+								type="checkbox"
+								bind:checked={settings.activityHighlights.autoSummarizeVisible}
+								class="peer sr-only"
+							/>
+							<div
+								class="relative h-5 w-9 rounded-full bg-gray-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 dark:bg-gray-700 dark:peer-focus-visible:ring-offset-gray-950"
+							></div>
+						</label>
+					</div>
+					<div class="grid gap-5 sm:grid-cols-2">
 						<div class="space-y-2">
 							<label
 								for="activity-model"

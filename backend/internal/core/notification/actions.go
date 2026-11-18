@@ -127,7 +127,7 @@ func (s *Service) UnfilterNotification(
 	return s.queries.MarkNotificationUnfiltered(ctx, userID, githubID)
 }
 
-// UpdateTimelineLastSeenAt updates the timeline last seen timestamp for a notification.
+// UpdateTimelineLastSeenAt advances the timeline seen timestamp; stale writes are successful no-ops.
 func (s *Service) UpdateTimelineLastSeenAt(
 	ctx context.Context,
 	userID, githubID, timestamp string,

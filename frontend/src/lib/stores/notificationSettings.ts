@@ -15,38 +15,53 @@
 
 import { writable, get, type Writable } from "svelte/store";
 import { browser } from "$app/environment";
+import type { WhatsNewSelection } from "$lib/utils/whatsNewCutoff";
 
 const NOTIFICATIONS_ENABLED_KEY = "octobud:notifications:enabled";
 const FAVICON_BADGE_ENABLED_KEY = "octobud:notifications:faviconBadge";
 const TIMELINE_AUTO_SCROLL_KEY = "octobud:timeline:autoScroll";
 const HOVER_ACTIONS_ENABLED_KEY = "octobud:notifications:hoverActions";
 const SHOW_TOTAL_COUNTS_KEY = "octobud:sidebar:showTotalCounts";
+const WHATS_NEW_DEFAULT_KEY = "octobud:timeline:whatsNewDefault";
+const WHATS_NEW_BASELINE_KEY = "octobud:timeline:whatsNewBaseline";
+
+function isWhatsNewSelection(value: string | null): value is WhatsNewSelection {
+	return (
+		value === "last_read" ||
+		value === "last_archive" ||
+		value === "my_last_comment" ||
+		value === "today" ||
+		value === "since_yesterday" ||
+		value === "past_7_days"
+	);
+}
 
 /**
  * Notification Settings Store
  * Manages notification preferences persisted to localStorage
  */
 export function createNotificationSettingsStore() {
+	const storage = typeof localStorage !== "undefined" ? localStorage : null;
 	// Load from localStorage, default to true (enabled)
 	const storedEnabled =
-		typeof window !== "undefined"
-			? localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false" // Default to true
+		storage
+			? storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false" // Default to true
 			: true;
 
 	const storedFaviconBadgeEnabled =
-		typeof window !== "undefined"
-			? localStorage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false" // Default to true
+		storage
+			? storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false" // Default to true
 			: true;
 
 	// Auto-scroll defaults to false (opt-in feature)
 	const storedTimelineAutoScroll =
-		typeof window !== "undefined"
-			? localStorage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true"
+		storage
+			? storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true"
 			: false;
 
 	const storedHoverActionsEnabled =
-		typeof window !== "undefined"
-			? localStorage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false"
+		storage
+			? storage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false"
 			: true;
 
 	const notificationsEnabled = writable<boolean>(storedEnabled);
@@ -54,13 +69,27 @@ export function createNotificationSettingsStore() {
 	const timelineAutoScroll = writable<boolean>(storedTimelineAutoScroll);
 	const hoverActionsEnabled = writable<boolean>(storedHoverActionsEnabled);
 	const showTotalCounts = writable(
-		typeof window !== "undefined" && localStorage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true"
+		!!storage && storage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true"
 	);
+	const whatsNewDefault = writable(
+		!!storage && storage.getItem(WHATS_NEW_DEFAULT_KEY) === "true"
+	);
+	const storedWhatsNewBaseline =
+		storage ? storage.getItem(WHATS_NEW_BASELINE_KEY) : null;
+	const defaultWhatsNewSelection: WhatsNewSelection = isWhatsNewSelection(storedWhatsNewBaseline)
+		? storedWhatsNewBaseline
+		: "last_read";
+	const whatsNewBaseline = writable<WhatsNewSelection>(defaultWhatsNewSelection);
+	const catchUpSelection = writable<WhatsNewSelection>(defaultWhatsNewSelection);
+	whatsNewBaseline.subscribe((value) => {
+		catchUpSelection.set(value);
+		storage?.setItem(WHATS_NEW_BASELINE_KEY, value);
+	});
 
 	// Persist to localStorage and notify service worker
-	if (browser) {
+	if (browser && storage) {
 		notificationsEnabled.subscribe((value) => {
-			localStorage.setItem(NOTIFICATIONS_ENABLED_KEY, value.toString());
+			storage.setItem(NOTIFICATIONS_ENABLED_KEY, value.toString());
 
 			// Notify service worker of setting change
 			if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
@@ -72,17 +101,20 @@ export function createNotificationSettingsStore() {
 		});
 
 		faviconBadgeEnabled.subscribe((value) => {
-			localStorage.setItem(FAVICON_BADGE_ENABLED_KEY, value.toString());
+			storage.setItem(FAVICON_BADGE_ENABLED_KEY, value.toString());
 		});
 
 		timelineAutoScroll.subscribe((value) => {
-			localStorage.setItem(TIMELINE_AUTO_SCROLL_KEY, value.toString());
+			storage.setItem(TIMELINE_AUTO_SCROLL_KEY, value.toString());
 		});
 		hoverActionsEnabled.subscribe((value) => {
-			localStorage.setItem(HOVER_ACTIONS_ENABLED_KEY, value.toString());
+			storage.setItem(HOVER_ACTIONS_ENABLED_KEY, value.toString());
 		});
 		showTotalCounts.subscribe((value) => {
-			localStorage.setItem(SHOW_TOTAL_COUNTS_KEY, value.toString());
+			storage.setItem(SHOW_TOTAL_COUNTS_KEY, value.toString());
+		});
+		whatsNewDefault.subscribe((value) => {
+			storage.setItem(WHATS_NEW_DEFAULT_KEY, value.toString());
 		});
 	}
 
@@ -92,13 +124,21 @@ export function createNotificationSettingsStore() {
 		timelineAutoScroll: timelineAutoScroll as Writable<boolean>,
 		hoverActionsEnabled: hoverActionsEnabled as Writable<boolean>,
 		showTotalCounts,
+		whatsNewDefault,
+		whatsNewBaseline,
+		catchUpSelection,
 		syncFromStorage: () => {
-			if (typeof window === "undefined") return;
-			const newEnabled = localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false";
-			const newFaviconBadge = localStorage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false";
-			const newAutoScroll = localStorage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true";
-			const newHoverActions = localStorage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false";
-			const newShowTotalCounts = localStorage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true";
+			if (!storage) return;
+			const newEnabled = storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false";
+			const newFaviconBadge = storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false";
+			const newAutoScroll = storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true";
+			const newHoverActions = storage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false";
+			const newShowTotalCounts = storage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true";
+			const newWhatsNewDefault = storage.getItem(WHATS_NEW_DEFAULT_KEY) === "true";
+			const storedBaseline = storage.getItem(WHATS_NEW_BASELINE_KEY);
+			const newWhatsNewBaseline = isWhatsNewSelection(storedBaseline)
+				? storedBaseline
+				: "last_read";
 			if (newEnabled !== get(notificationsEnabled)) notificationsEnabled.set(newEnabled);
 			if (newFaviconBadge !== get(faviconBadgeEnabled)) faviconBadgeEnabled.set(newFaviconBadge);
 			if (newAutoScroll !== get(timelineAutoScroll)) timelineAutoScroll.set(newAutoScroll);
@@ -106,6 +146,10 @@ export function createNotificationSettingsStore() {
 				hoverActionsEnabled.set(newHoverActions);
 			}
 			if (newShowTotalCounts !== get(showTotalCounts)) showTotalCounts.set(newShowTotalCounts);
+			if (newWhatsNewDefault !== get(whatsNewDefault)) whatsNewDefault.set(newWhatsNewDefault);
+			if (newWhatsNewBaseline !== get(whatsNewBaseline)) {
+				whatsNewBaseline.set(newWhatsNewBaseline);
+			}
 		},
 		setEnabled: (enabled: boolean) => {
 			notificationsEnabled.set(enabled);
@@ -121,6 +165,15 @@ export function createNotificationSettingsStore() {
 		},
 		setShowTotalCounts: (enabled: boolean) => {
 			showTotalCounts.set(enabled);
+		},
+		setWhatsNewDefault: (enabled: boolean) => {
+			whatsNewDefault.set(enabled);
+		},
+		setWhatsNewBaseline: (baseline: WhatsNewSelection) => {
+			whatsNewBaseline.set(baseline);
+		},
+		setCatchUpSelection: (selection: WhatsNewSelection) => {
+			catchUpSelection.set(selection);
 		},
 		toggle: () => {
 			notificationsEnabled.update((enabled) => !enabled);
@@ -150,21 +203,21 @@ export function getNotificationSettingsStore() {
 
 // Helper to check if notifications are enabled (for service worker)
 export function isNotificationEnabled(): boolean {
-	if (!browser) return true; // Default to enabled on server
+	if (!browser || typeof localStorage === "undefined") return true; // Default to enabled on server
 	const stored = localStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
 	return stored !== "false"; // Default to true
 }
 
 // Helper to check if favicon badge is enabled
 export function isFaviconBadgeEnabled(): boolean {
-	if (!browser) return true; // Default to enabled on server
+	if (!browser || typeof localStorage === "undefined") return true; // Default to enabled on server
 	const stored = localStorage.getItem(FAVICON_BADGE_ENABLED_KEY);
 	return stored !== "false"; // Default to true
 }
 
 // Helper to check if timeline auto-scroll is enabled
 export function isTimelineAutoScrollEnabled(): boolean {
-	if (!browser) return false; // Default to disabled on server
+	if (!browser || typeof localStorage === "undefined") return false; // Default to disabled on server
 	const stored = localStorage.getItem(TIMELINE_AUTO_SCROLL_KEY);
 	return stored === "true"; // Default to false
 }
