@@ -67,6 +67,9 @@ or the activity window includes the opening event, you can switch directly to **
 to read the conversation from the beginning.
 Tab counts load in the background and count individual activity entries, including replies.
 What's new counts its displayed entries, including older context, without counting duplicates.
+The selected tab is linked as `reader=full` or `reader=whats-new` in the URL, so reloads,
+shared links, and browser Back/Forward restore it. Without a valid `reader` parameter,
+the saved default applies.
 Use each item's GitHub link to reply or take action.
 
 #### 📥 Full Lifecycle Management

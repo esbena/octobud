@@ -6,9 +6,12 @@ import type { WhatsNewEntryCounts } from "$lib/types/whatsNew";
 import { createTimelineController } from "$lib/state/timelineController";
 import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
 import { updateTimelineLastSeen } from "$lib/api/notifications";
+import { pushState } from "$app/navigation";
 import InlineDetailView from "./InlineDetailView.svelte";
 
 const captures = vi.hoisted(() => ({
+	navigationState: { sidebarCollapsed: true, savedScrollPosition: 42 },
+	afterNavigate: null as (() => void) | null,
 	readers: [] as {
 		githubId: string;
 		lastReadAt: string | null;
@@ -27,6 +30,16 @@ const captures = vi.hoisted(() => ({
 	} | null,
 	seen: null as ((timestamp: string) => Promise<void>) | null,
 }));
+vi.mock("$app/navigation", () => ({
+	afterNavigate: vi.fn((callback: () => void) => {
+		captures.afterNavigate = callback;
+	}),
+	pushState: vi.fn((url: URL, state: unknown) => window.history.pushState(state, "", url)),
+}));
+vi.mock("$app/stores", async () => {
+	const { readable } = await import("svelte/store");
+	return { page: readable({ state: captures.navigationState }) };
+});
 vi.mock("./DetailActionBar.svelte", () => ({
 	default: (_anchor: unknown, props: typeof captures.actionBar) => {
 		captures.actionBar = props;
@@ -100,7 +113,9 @@ function openDetail(current: Writable<Notification | null>) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	window.history.replaceState({}, "", "/views/inbox?id=github-one");
 	captures.readers = [];
+	captures.afterNavigate = null;
 	captures.actionBar = null;
 	captures.seen = null;
 	getNotificationSettingsStore().setWhatsNewDefault(false);
@@ -108,6 +123,73 @@ beforeEach(() => {
 	HTMLElement.prototype.scrollTo = vi.fn();
 });
 afterEach(cleanup);
+
+it.each([
+	{ reader: "full", preference: true, selected: "Full view" },
+	{ reader: "whats-new", preference: false, selected: "What's new" },
+	{ reader: "unknown", preference: true, selected: "What's new" },
+])(
+	"opens $selected from reader=$reader with preference=$preference",
+	({ reader, preference, selected }) => {
+		window.history.replaceState({}, "", `/views/inbox?id=github-one&reader=${reader}`);
+		getNotificationSettingsStore().setWhatsNewDefault(preference);
+		openDetail(writable<Notification | null>(notification));
+		expect(screen.getByRole("tab", { name: selected })).toHaveAttribute("aria-selected", "true");
+		expect(pushState).not.toHaveBeenCalled();
+	}
+);
+
+it("updates the URL for mouse and keyboard tab changes without losing other URL or navigation state", async () => {
+	window.history.replaceState({}, "", "/views/inbox?id=github-one&page=2&q=review#activity");
+	openDetail(writable<Notification | null>(notification));
+	await fireEvent.click(screen.getByRole("tab", { name: "What's new" }));
+	expect(window.location.search).toBe("?id=github-one&page=2&q=review&reader=whats-new");
+	expect(window.location.hash).toBe("#activity");
+	expect(pushState).toHaveBeenLastCalledWith(expect.any(URL), captures.navigationState);
+	await fireEvent.click(screen.getByRole("tab", { name: "What's new" }));
+	expect(pushState).toHaveBeenCalledTimes(1);
+	await fireEvent.keyDown(screen.getByRole("tab", { name: "What's new" }), { key: "Home" });
+	expect(new URL(window.location.href).searchParams.get("reader")).toBe("full");
+	expect(screen.getByRole("tab", { name: "Full view" })).toHaveFocus();
+});
+
+it("restores tabs with Back and Forward, including the default when the URL has no reader", async () => {
+	openDetail(writable<Notification | null>(notification));
+	await fireEvent.click(screen.getByRole("tab", { name: "What's new" }));
+	await fireEvent.click(screen.getByRole("tab", { name: "Full view" }));
+	window.history.back();
+	await waitFor(() => {
+		expect(new URL(window.location.href).searchParams.get("reader")).toBe("whats-new");
+		expect(screen.getByRole("tab", { name: "What's new" })).toHaveAttribute(
+			"aria-selected",
+			"true"
+		);
+	});
+	window.history.back();
+	await waitFor(() => {
+		expect(new URL(window.location.href).searchParams.has("reader")).toBe(false);
+		expect(screen.getByRole("tab", { name: "Full view" })).toHaveAttribute("aria-selected", "true");
+	});
+	window.history.forward();
+	await waitFor(() => {
+		expect(new URL(window.location.href).searchParams.get("reader")).toBe("whats-new");
+		expect(screen.getByRole("tab", { name: "What's new" })).toHaveAttribute(
+			"aria-selected",
+			"true"
+		);
+	});
+	expect(pushState).toHaveBeenCalledTimes(2);
+});
+
+it("follows a full navigation to another reader selection without writing history", async () => {
+	openDetail(writable<Notification | null>(notification));
+	window.history.replaceState({}, "", "/views/inbox?id=github-one&reader=whats-new");
+	captures.afterNavigate?.();
+	await waitFor(() =>
+		expect(screen.getByRole("tab", { name: "What's new" })).toHaveAttribute("aria-selected", "true")
+	);
+	expect(pushState).not.toHaveBeenCalled();
+});
 
 it("keeps the first-visit read baseline frozen while using the global catch-up range", async () => {
 	getNotificationSettingsStore().setWhatsNewDefault(true);
@@ -146,6 +228,7 @@ it("allows first-read guidance to switch to the full view", async () => {
 	await waitFor(() =>
 		expect(screen.getByRole("tab", { name: "Full view" })).toHaveAttribute("aria-selected", "true")
 	);
+	expect(new URL(window.location.href).searchParams.get("reader")).toBe("full");
 });
 
 it("loads reader counts while Full view is selected and clears them on navigation", async () => {
@@ -175,10 +258,12 @@ it("moves detailed summaries to the action bar and makes generated summaries vie
 		selection: "last_read",
 		richSummaryTrigger: 1,
 	});
+	expect(new URL(window.location.href).searchParams.get("reader")).toBe("whats-new");
 	captures.actionBar?.onShowActivitySummary?.();
 	await waitFor(() =>
 		expect(screen.getByRole("tab", { name: "Full view" })).toHaveAttribute("aria-selected", "true")
 	);
+	expect(new URL(window.location.href).searchParams.get("reader")).toBe("full");
 });
 
 it.each(["Release", "CheckSuite", "Commit"])(

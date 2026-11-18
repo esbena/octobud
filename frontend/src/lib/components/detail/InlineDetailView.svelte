@@ -17,6 +17,8 @@
 	import type { Notification, NotificationDetail } from "$lib/api/types";
 	import { fade } from "svelte/transition";
 	import { onDestroy, getContext, onMount } from "svelte";
+	import { afterNavigate, pushState } from "$app/navigation";
+	import { page } from "$app/stores";
 	import {
 		normalizeReason,
 		parseSubjectMetadata,
@@ -108,7 +110,7 @@
 		readerCounts = null;
 		richSummaryTrigger = 0;
 		readerGeneration += 1;
-		activeReaderView = $whatsNewDefault ? "whats_new" : "full";
+		activeReaderView = readerViewFromUrl();
 	}
 	$: supportsReader = !!(
 		timelineController &&
@@ -117,8 +119,38 @@
 	);
 	$: readerId = `reader-${notification.id}`;
 
+	function readerViewFromUrl(): "full" | "whats_new" {
+		// Shallow navigation can leave the legacy page store's URL stale.
+		const url = typeof window === "undefined" ? get(page).url : new URL(window.location.href);
+		const reader = url.searchParams.get("reader");
+		if (reader === "full") return "full";
+		if (reader === "whats-new") return "whats_new";
+		return $whatsNewDefault ? "whats_new" : "full";
+	}
+
+	function syncReaderViewFromUrl() {
+		activeReaderView = readerViewFromUrl();
+	}
+
+	afterNavigate(syncReaderViewFromUrl);
+	onMount(() => {
+		window.addEventListener("popstate", syncReaderViewFromUrl);
+		return () => window.removeEventListener("popstate", syncReaderViewFromUrl);
+	});
+
+	function selectReaderView(view: "full" | "whats_new") {
+		const url = new URL(window.location.href);
+		url.searchParams.set("id", notification.githubId ?? notification.id);
+		url.searchParams.set("reader", view === "full" ? "full" : "whats-new");
+		if (url.href !== window.location.href) {
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			pushState(url, get(page).state);
+		}
+		activeReaderView = view;
+	}
+
 	function showFullView() {
-		activeReaderView = "full";
+		selectReaderView("full");
 	}
 
 	function handleReaderCounts(counts: WhatsNewEntryCounts | null) {
@@ -126,7 +158,7 @@
 	}
 
 	function generateDetailedSummary() {
-		activeReaderView = "whats_new";
+		selectReaderView("whats_new");
 		richSummaryTrigger += 1;
 	}
 
@@ -1265,7 +1297,12 @@
 					{/if}
 
 					{#if supportsReader}
-						<ReaderTabs id={readerId} bind:activeView={activeReaderView} counts={readerCounts} />
+						<ReaderTabs
+							id={readerId}
+							activeView={activeReaderView}
+							counts={readerCounts}
+							onViewChange={selectReaderView}
+						/>
 					{/if}
 
 					<div
