@@ -432,6 +432,21 @@ func (mr *MockStoreMockRecorder) CountNotificationsByRepository(ctx, userID, que
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountNotificationsByRepository", reflect.TypeOf((*MockStore)(nil).CountNotificationsByRepository), ctx, userID, query)
 }
 
+// CreateAnnotation mocks base method.
+func (m *MockStore) CreateAnnotation(ctx context.Context, userID string, annotation db.Annotation) (db.Annotation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAnnotation", ctx, userID, annotation)
+	ret0, _ := ret[0].(db.Annotation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateAnnotation indicates an expected call of CreateAnnotation.
+func (mr *MockStoreMockRecorder) CreateAnnotation(ctx, userID, annotation any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAnnotation", reflect.TypeOf((*MockStore)(nil).CreateAnnotation), ctx, userID, annotation)
+}
+
 // CreateRule mocks base method.
 func (m *MockStore) CreateRule(ctx context.Context, userID string, arg db.CreateRuleParams) (db.Rule, error) {
 	m.ctrl.T.Helper()
@@ -489,6 +504,20 @@ func (m *MockStore) DeleteAllGitHubData(ctx context.Context, userID string) erro
 func (mr *MockStoreMockRecorder) DeleteAllGitHubData(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllGitHubData", reflect.TypeOf((*MockStore)(nil).DeleteAllGitHubData), ctx, userID)
+}
+
+// DeleteAnnotation mocks base method.
+func (m *MockStore) DeleteAnnotation(ctx context.Context, userID, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAnnotation", ctx, userID, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAnnotation indicates an expected call of DeleteAnnotation.
+func (mr *MockStoreMockRecorder) DeleteAnnotation(ctx, userID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAnnotation", reflect.TypeOf((*MockStore)(nil).DeleteAnnotation), ctx, userID, id)
 }
 
 // DeleteOldArchivedNotifications mocks base method.
@@ -819,6 +848,21 @@ func (mr *MockStoreMockRecorder) ListAllTags(ctx, userID any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllTags", reflect.TypeOf((*MockStore)(nil).ListAllTags), ctx, userID)
 }
 
+// ListAnnotations mocks base method.
+func (m *MockStore) ListAnnotations(ctx context.Context, userID string) ([]db.Annotation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAnnotations", ctx, userID)
+	ret0, _ := ret[0].([]db.Annotation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAnnotations indicates an expected call of ListAnnotations.
+func (mr *MockStoreMockRecorder) ListAnnotations(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAnnotations", reflect.TypeOf((*MockStore)(nil).ListAnnotations), ctx, userID)
+}
+
 // ListEnabledRulesOrdered mocks base method.
 func (m *MockStore) ListEnabledRulesOrdered(ctx context.Context, userID string) ([]db.Rule, error) {
 	m.ctrl.T.Helper()
@@ -1144,6 +1188,21 @@ func (m *MockStore) UnstarNotification(ctx context.Context, userID, githubID str
 func (mr *MockStoreMockRecorder) UnstarNotification(ctx, userID, githubID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnstarNotification", reflect.TypeOf((*MockStore)(nil).UnstarNotification), ctx, userID, githubID)
+}
+
+// UpdateAnnotation mocks base method.
+func (m *MockStore) UpdateAnnotation(ctx context.Context, userID string, annotation db.Annotation) (db.Annotation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAnnotation", ctx, userID, annotation)
+	ret0, _ := ret[0].(db.Annotation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAnnotation indicates an expected call of UpdateAnnotation.
+func (mr *MockStoreMockRecorder) UpdateAnnotation(ctx, userID, annotation any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAnnotation", reflect.TypeOf((*MockStore)(nil).UpdateAnnotation), ctx, userID, annotation)
 }
 
 // UpdateNotificationDraft mocks base method.

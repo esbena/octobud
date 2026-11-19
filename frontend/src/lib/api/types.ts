@@ -114,6 +114,8 @@ export interface ActionHints {
 }
 
 export interface Notification {
+	raw?: BackendNotificationResponse;
+	payload?: unknown;
 	id: string;
 	githubId?: string;
 	repoFullName: string;

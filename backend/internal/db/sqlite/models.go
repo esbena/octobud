@@ -8,6 +8,16 @@ import (
 	"database/sql"
 )
 
+type Annotation struct {
+	ID        string
+	UserID    string
+	Name      string
+	Code      string
+	ViewIds   string
+	Enabled   int64
+	CreatedAt string
+}
+
 type Job struct {
 	ID          int64
 	Queue       string

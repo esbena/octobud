@@ -21,6 +21,7 @@
 	import SettingsView from "$lib/components/settings/SettingsView.svelte";
 	import GitHubSettingsSection from "$lib/components/settings/GitHubSettingsSection.svelte";
 	import RulesSection from "$lib/components/settings/RulesSection.svelte";
+	import AnnotationsSection from "$lib/components/settings/AnnotationsSection.svelte";
 	import NotificationSettingsSection from "$lib/components/settings/NotificationSettingsSection.svelte";
 	import PreferencesSection from "$lib/components/settings/PreferencesSection.svelte";
 	import SyncOlderNotificationsSection from "$lib/components/settings/SyncOlderNotificationsSection.svelte";
@@ -40,6 +41,7 @@
 		"notifications",
 		"copilot",
 		"rules",
+		"annotations",
 		"data",
 		"updates",
 		"debugging",
@@ -240,6 +242,10 @@
 			title: "Rules",
 			description: "Automatically organize notifications",
 		},
+		annotations: {
+			title: "Annotations",
+			description: "Compute label-style annotations for your views",
+		},
 		data: {
 			title: "Data",
 			description: "Manage sync and storage settings",
@@ -277,6 +283,8 @@
 		<NotificationSettingsSection />
 	{:else if activeSection === "rules"}
 		<RulesSection rules={data.rules} tags={data.tags} />
+	{:else if activeSection === "annotations"}
+		<AnnotationsSection />
 	{:else if activeSection === "data"}
 		<div class="space-y-8">
 			<SyncOlderNotificationsSection />

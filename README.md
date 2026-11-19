@@ -92,6 +92,7 @@ the sidebar. You can create custom views as alternatives.
 | **Rich Querying** | Filter with a powerful query language |
 | **Custom Views** | Create saved filtered views for your workflow |
 | **Automation Rules** | Filter, tag, archive and more with query-based rules |
+| **View Annotations** | Run your JavaScript in the browser to add label-style information to view entries |
 | **Keyboard-First** | Vim-style navigation and intuitive shortcuts |
 | **Desktop Notifications** | Never miss a review request or issue reply |
 | **Inline Details** | View issue and PR status, comments, and more inline |
@@ -99,6 +100,57 @@ the sidebar. You can create custom views as alternatives.
 | **Tags** | Organize with custom tags and colors |
 | **Real-Time Sync** | Background sync keeps everything up to date |
 | **Privacy-First** | Local-first, your data stays on your machine |
+
+### View annotations
+
+Open **Settings → Annotations** to create reusable annotations. Give each a name,
+enter a JavaScript function expression, and check the views where it should run.
+Selecting no views runs the annotation in all views. An independent **Enable annotation**
+toggle lets you pause it without losing its selected views. Expand an annotation
+in the overview to inspect its code and views, toggle enablement, or open its editor.
+Existing annotations remain enabled when upgrading. Definitions, enablement and view assignments
+are saved in Octobud's database; results are computed only in the browser and are
+not saved as tags or used to change view membership.
+
+```js
+({ notification, subject }) => {
+  if (!subject?.body?.includes("BREAKING CHANGE")) return [];
+  return [{
+    text: "⚠️ Breaking change",
+    color: "#d93f0b",
+    hoverText: "The stored description mentions a breaking change."
+  }];
+}
+```
+
+The function receives one object: `notification` contains the entry's frontend
+fields, `notification.raw` is its complete API snapshot, and `subject` is the stored
+raw GitHub subject JSON, or `null` if it is unavailable. The original notification
+payload is accessible as `notification.payload`. `notification.subjectFetchedAt`
+indicates when the subject was fetched, if known. View list requests include stored
+subject JSON so bodies can be inspected without opening each entry. This does not
+fetch fresh GitHub data or load comments/timeline events for annotations.
+
+Return an array of labels, or `[]` for no results. Each label requires non-empty
+`text` and a six-digit hex `color` (`#RRGGBB`); `hoverText` is optional.
+All text is plain text, including Unicode emojis: HTML, Markdown and emoji
+shortcodes are not interpreted. Octobud renders the labels and selects contrasting
+text colors. Async functions are supported, with pending indicators while they run
+and visible errors for exceptions or invalid output.
+
+Annotation code is trusted user code and runs directly in the browser with
+`await`, not in a worker or sandbox. Only use code you trust. Synchronous expensive
+work or infinite loops can block the UI; a function that never settles will remain
+pending. Inputs are copied so accidental mutation does not change the entry.
+
+The annotation editor includes a **Test annotation** panel. Paste an Octobud view
+URL such as `http://localhost:8808/views/inbox?id=27088099001` and click **Load input**
+to inspect the JSON argument built from that notification's stored snapshot.
+Only the notification ID is taken from the URL; data is loaded from the current
+Octobud instance without marking it read or fetching fresh GitHub data.
+Click **Run annotation** to execute the current unsaved code and inspect its
+validated label output as JSON. Logs appear in the browser developer console.
+Changing the code clears the previous output; changing the URL clears the loaded input.
 
 ## Quick Start
 

@@ -16,6 +16,8 @@
 
 	import { getContext, onMount, tick } from "svelte";
 	import type { Notification } from "$lib/api/types";
+	import type { Annotation } from "$lib/api/annotations";
+	import AnnotationLabels from "./AnnotationLabels.svelte";
 	import { getNotificationIcon, getStatusBarColor } from "$lib/utils/notificationIcons";
 	import {
 		formatRelative,
@@ -76,6 +78,7 @@
 	} = pageController.stores;
 
 	export let notification: Notification;
+	export let annotations: Annotation[] = [];
 	export let selectionEnabled = false;
 	export let selectionDisabled = false;
 	export let selected = false;
@@ -548,6 +551,7 @@
 						{/if}
 					</div>
 				{/if}
+				<AnnotationLabels {annotations} {notification} />
 			</div>
 			{#if activityBrief && activityBrief.status !== "cancelled"}
 				<div class="pl-6 pt-1">
