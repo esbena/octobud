@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import PreferencesSection from "./PreferencesSection.svelte";
 
 const mocks = vi.hoisted(() => {
-	const readable = (value: string | boolean) => ({
-		subscribe(run: (value: string | boolean) => void) {
+	const readable = <T>(value: T) => ({
+		subscribe(run: (value: T) => void) {
 			run(value);
 			return () => {};
 		},
@@ -15,11 +15,19 @@ const mocks = vi.hoisted(() => {
 			timelineAutoScroll: readable(false),
 			hoverActionsEnabled: readable(true),
 			showTotalCounts: readable(false),
+			builtInViewVisibility: readable({
+				inbox: true,
+				starred: true,
+				snoozed: true,
+				archive: true,
+				everything: true,
+			}),
 			whatsNewDefault: readable(false),
 			whatsNewBaseline: readable("last_read"),
 			setTimelineAutoScroll: vi.fn(),
 			setHoverActionsEnabled: vi.fn(),
 			setShowTotalCounts: vi.fn(),
+			setBuiltInViewVisible: vi.fn(),
 			setWhatsNewDefault: vi.fn(),
 			setWhatsNewBaseline: vi.fn(),
 		},

@@ -54,39 +54,30 @@ export function createNotificationSettingsStore() {
 	let persistedVisibility = readBuiltInViewVisibility();
 	const builtInViewVisibility = writable(persistedVisibility);
 	// Load from localStorage, default to true (enabled)
-	const storedEnabled =
-		storage
-			? storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false" // Default to true
-			: true;
+	const storedEnabled = storage
+		? storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false" // Default to true
+		: true;
 
-	const storedFaviconBadgeEnabled =
-		storage
-			? storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false" // Default to true
-			: true;
+	const storedFaviconBadgeEnabled = storage
+		? storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false" // Default to true
+		: true;
 
 	// Auto-scroll defaults to false (opt-in feature)
-	const storedTimelineAutoScroll =
-		storage
-			? storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true"
-			: false;
+	const storedTimelineAutoScroll = storage
+		? storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true"
+		: false;
 
-	const storedHoverActionsEnabled =
-		storage
-			? storage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false"
-			: true;
+	const storedHoverActionsEnabled = storage
+		? storage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false"
+		: true;
 
 	const notificationsEnabled = writable<boolean>(storedEnabled);
 	const faviconBadgeEnabled = writable<boolean>(storedFaviconBadgeEnabled);
 	const timelineAutoScroll = writable<boolean>(storedTimelineAutoScroll);
 	const hoverActionsEnabled = writable<boolean>(storedHoverActionsEnabled);
-	const showTotalCounts = writable(
-		!!storage && storage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true"
-	);
-	const whatsNewDefault = writable(
-		!!storage && storage.getItem(WHATS_NEW_DEFAULT_KEY) === "true"
-	);
-	const storedWhatsNewBaseline =
-		storage ? storage.getItem(WHATS_NEW_BASELINE_KEY) : null;
+	const showTotalCounts = writable(!!storage && storage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true");
+	const whatsNewDefault = writable(!!storage && storage.getItem(WHATS_NEW_DEFAULT_KEY) === "true");
+	const storedWhatsNewBaseline = storage ? storage.getItem(WHATS_NEW_BASELINE_KEY) : null;
 	const defaultWhatsNewSelection: WhatsNewSelection = isWhatsNewSelection(storedWhatsNewBaseline)
 		? storedWhatsNewBaseline
 		: "last_read";
