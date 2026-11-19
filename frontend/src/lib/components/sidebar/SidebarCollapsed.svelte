@@ -21,7 +21,7 @@
 	import type { NotificationView } from "$lib/api/types";
 	import type { Tag } from "$lib/api/tags";
 	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
-	const { showTotalCounts } = getNotificationSettingsStore();
+	const { showTotalCounts, builtInViewVisibility } = getNotificationSettingsStore();
 
 	function countLabel(
 		name: string,
@@ -63,7 +63,7 @@
 	<div class="flex flex-col px-2">
 		<!-- Built-in views -->
 		<ul class="">
-			{#each builtInViewList as builtIn (builtIn.id)}
+			{#each builtInViewList.filter((view) => $builtInViewVisibility[view.slug] !== false) as builtIn (builtIn.id)}
 				{@const iconProps = getBuiltInIconProps(builtIn.icon)}
 				<li>
 					<button

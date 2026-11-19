@@ -75,6 +75,12 @@ Use each item's GitHub link to reply or take action.
 #### 📥 Full Lifecycle Management
 Star, Snooze, Archive, Tag, and Mute notifications
 
+Settings → Preferences → **Built-in sidebar views** lets you independently hide
+Inbox, Starred, Snoozed, Archive, and Everything from the sidebar. All are shown
+by default, and the choices are saved locally. Hidden views still open through
+direct links, keyboard navigation, and the macOS menu bar without reappearing in
+the sidebar. You can create custom views as alternatives.
+
 ### More
 
 | Feature | Description |

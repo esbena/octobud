@@ -17,6 +17,9 @@
 	import ViewCard from "./ViewCard.svelte";
 	import { normalizeViewId } from "$lib/state/types";
 	import type { NotificationView } from "$lib/api/types";
+	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
+
+	const { builtInViewVisibility } = getNotificationSettingsStore();
 
 	export let builtInViewList: NotificationView[];
 	export let sortedUserViews: NotificationView[];
@@ -47,7 +50,7 @@
 
 <!-- Built-in views + Custom views -->
 <ul class="space-y-0 py-2">
-	{#each builtInViewList as builtIn (builtIn.id)}
+	{#each builtInViewList.filter((view) => $builtInViewVisibility[view.slug] !== false) as builtIn (builtIn.id)}
 		<BuiltInViewCard
 			view={builtIn}
 			selected={!isSettingsRoute &&

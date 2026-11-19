@@ -18,6 +18,7 @@
 	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
 	import { toastStore } from "$lib/stores/toastStore";
 	import { WHATS_NEW_SELECTIONS } from "$lib/utils/whatsNewCutoff";
+	import { BUILT_IN_VIEWS } from "$lib/state/types";
 
 	const themeStore = getThemeStore();
 	const { theme } = themeStore;
@@ -27,6 +28,7 @@
 		timelineAutoScroll,
 		hoverActionsEnabled,
 		showTotalCounts,
+		builtInViewVisibility,
 		whatsNewDefault,
 		whatsNewBaseline,
 	} = settingsStore;
@@ -72,6 +74,36 @@
 			></div>
 		</label>
 	</div>
+
+	<fieldset class="py-3 border-t border-gray-200 dark:border-gray-800">
+		<legend class="text-md font-medium text-gray-900 dark:text-gray-100">
+			Built-in sidebar views
+		</legend>
+		<p class="text-xs text-gray-600 dark:text-gray-400 mb-3">
+			Choose which built-in views appear in the sidebar. Hidden views still open through links and
+			shortcuts. You can also create your own custom views.
+		</p>
+		<div class="space-y-3">
+			{#each Object.values(BUILT_IN_VIEWS) as view (view.slug)}
+				<label class="flex items-center justify-between cursor-pointer">
+					<span class="text-sm text-gray-900 dark:text-gray-100">{view.name}</span>
+					<span class="relative flex items-center">
+						<input
+							type="checkbox"
+							aria-label={"Show " + view.name + " in sidebar"}
+							checked={$builtInViewVisibility[view.slug]}
+							on:change={(e) =>
+								settingsStore.setBuiltInViewVisible(view.slug, e.currentTarget.checked)}
+							class="sr-only peer"
+						/>
+						<span
+							class="relative w-9 h-5 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"
+						></span>
+					</span>
+				</label>
+			{/each}
+		</div>
+	</fieldset>
 
 	<div class="flex items-center justify-between py-3 border-t border-gray-200 dark:border-gray-800">
 		<div class="flex-1">
