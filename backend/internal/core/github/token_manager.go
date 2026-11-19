@@ -173,7 +173,7 @@ func (m *TokenManager) observeResponse(statusCode int, expiresAt *time.Time) {
 	switch {
 	case statusCode == http.StatusUnauthorized:
 		m.tokenInvalid = true
-	case statusCode >= 200 && statusCode < 300:
+	case statusCode >= 200 && statusCode < 300, statusCode == http.StatusNotModified:
 		m.tokenInvalid = false
 	}
 	transitioned := !wasInvalid && m.tokenInvalid

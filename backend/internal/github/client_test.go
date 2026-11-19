@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -1488,6 +1490,51 @@ func TestNewClient(t *testing.T) {
 	require.NotNil(t, impl.httpClient)
 	require.Equal(t, githubAPIBase, impl.baseURL)
 	require.Equal(t, defaultPerPage, impl.perPage)
+}
+
+func TestContentCachePreservesTimelineAndObservesOriginStatus(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("disk cache is disabled on Windows")
+	}
+	client, err := NewClientWithContentCache(filepath.Join(t.TempDir(), "cache"))
+	require.NoError(t, err)
+	c := client.(*clientImpl)
+	observed := make(chan int, 5)
+	c.SetTokenObserver(func(status int, _ *time.Time) { observed <- status })
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/r/issues/1/timeline" && r.Header.Get("If-None-Match") != "" {
+			t.Error("non-content request was made conditional")
+		}
+		w.Header().Set("ETag", `"response"`)
+		if r.Header.Get("If-None-Match") == `"response"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Link", `<https://example.test/timeline?per_page=50&page=3>; rel="last"`)
+		switch r.URL.Path {
+		case "/user":
+			fmt.Fprint(w, `{"login":"test"}`)
+		default:
+			fmt.Fprint(w, `[]`)
+		}
+	}))
+	defer s.Close()
+	c.baseURL = s.URL
+	require.NoError(t, c.SetToken(t.Context(), testToken))
+	require.Equal(t, http.StatusOK, <-observed)
+	for _, status := range []int{http.StatusOK, http.StatusNotModified} {
+		events, lastPage, err := c.FetchTimeline(t.Context(), "o", "r", 1, 50, 1)
+		require.NoError(t, err)
+		require.NotNil(t, events)
+		require.Equal(t, 3, lastPage)
+		require.Equal(t, status, <-observed)
+	}
+	for range 2 {
+		_, err := c.FetchNotifications(t.Context(), nil, nil, false)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, <-observed)
+	}
 }
 
 func TestFetchNotifications_ContextCancellation(t *testing.T) {

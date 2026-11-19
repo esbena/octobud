@@ -31,6 +31,7 @@ import (
 
 	githubinterfaces "github.com/octobud-hq/octobud/backend/internal/github/interfaces"
 	"github.com/octobud-hq/octobud/backend/internal/github/types"
+	"github.com/octobud-hq/octobud/backend/internal/httpcache"
 )
 
 const (
@@ -123,15 +124,34 @@ func (t *observingTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 // clientImpl wraps calls to the GitHub API for interacting with the Notifications API.
 type clientImpl struct {
-	httpClient *http.Client
-	transport  *observingTransport
-	baseURL    string
-	perPage    int
-	token      string
+	httpClient    *http.Client
+	contentClient *http.Client
+	transport     *observingTransport
+	baseURL       string
+	perPage       int
+	token         string
 }
 
 // NewClient constructs an HTTP-backed GitHub client.
 func NewClient() githubinterfaces.Client {
+	return newClient()
+}
+
+// NewClientWithContentCache enables disk revalidation for REST content GETs.
+// On setup failure it returns an uncached client alongside the error.
+func NewClientWithContentCache(dir string) (githubinterfaces.Client, error) {
+	c := newClient()
+	transport, err := httpcache.New(c.transport, dir)
+	if err != nil {
+		return c, err
+	}
+	client := *c.httpClient
+	client.Transport = transport
+	c.contentClient = &client
+	return c, nil
+}
+
+func newClient() *clientImpl {
 	transport := &observingTransport{base: http.DefaultTransport}
 	return &clientImpl{
 		httpClient: &http.Client{
@@ -142,6 +162,13 @@ func NewClient() githubinterfaces.Client {
 		baseURL:   githubAPIBase,
 		perPage:   defaultPerPage,
 	}
+}
+
+func (c *clientImpl) doContent(req *http.Request) (*http.Response, error) {
+	if c.contentClient != nil {
+		return c.contentClient.Do(req)
+	}
+	return c.httpClient.Do(req)
 }
 
 // SetTokenObserver registers a callback invoked on each authenticated response.
@@ -447,7 +474,7 @@ func (c *clientImpl) FetchSubjectRaw(
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doContent(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: fetch subject: %w", err)
 	}
@@ -494,7 +521,7 @@ func (c *clientImpl) FetchIssueComments(
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doContent(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: fetch comments: %w", err)
 	}
@@ -540,7 +567,7 @@ func (c *clientImpl) FetchPullRequestReviews(
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doContent(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: fetch reviews: %w", err)
 	}
@@ -586,7 +613,7 @@ func (c *clientImpl) FetchPullRequestComments(
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doContent(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: fetch pull comments: %w", err)
 	}
@@ -659,7 +686,7 @@ func (c *clientImpl) FetchTimeline(
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doContent(req)
 	if err != nil {
 		return nil, 1, fmt.Errorf("github: fetch timeline: %w", err)
 	}
@@ -708,7 +735,7 @@ func (c *clientImpl) FetchPRCommits(
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doContent(req)
 	if err != nil {
 		return nil, fmt.Errorf("github: fetch pr commits: %w", err)
 	}
