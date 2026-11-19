@@ -121,6 +121,7 @@ export function createOptimisticUpdateHelpers(
 		keyboardStore,
 		uiStore,
 	} = stores;
+	let actionGeneration = 0;
 
 	/**
 	 * Calculate the next item to focus/open after removing an item from the list
@@ -253,6 +254,7 @@ export function createOptimisticUpdateHelpers(
 		shouldCloseDetailInSingleMode?: boolean;
 		shouldRemoveFromSelection?: boolean;
 	}): Promise<void> {
+		const actionRevision = ++actionGeneration;
 		const {
 			notification,
 			currentIndex,
@@ -358,6 +360,7 @@ export function createOptimisticUpdateHelpers(
 				// 4. Handle pagination navigation if needed
 				if (paginationInfo.shouldNavigateToPreviousPage && paginationInfo.targetPage) {
 					paginationStore.setPage(paginationInfo.targetPage);
+					await sharedHelpers.syncQueryToUrl();
 				}
 
 				// 5. Update detail and focus optimistically
@@ -408,12 +411,17 @@ export function createOptimisticUpdateHelpers(
 					}
 				}
 
-				// 7. Now refresh in background to get authoritative state
-				// onRefresh() invalidates all load functions including view counts, so we don't need onRefreshViewCounts()
-				paginationStore.setLoading(true);
+				// Share the authoritative refresh without blocking further list actions.
+				const refreshFocus = get(keyboardStore.keyboardFocusIndex);
+				const refreshDetail = get(detailStore.detailNotificationId);
 				await options.onRefresh?.();
-				paginationStore.setLoading(false);
 				await tick();
+				if (
+					actionRevision !== actionGeneration ||
+					refreshFocus !== get(keyboardStore.keyboardFocusIndex) ||
+					refreshDetail !== get(detailStore.detailNotificationId)
+				)
+					return;
 
 				// 8. After refresh, re-validate and set focus
 				// Only re-set focus if we handled it optimistically (affectsFocusedItem || wasViewingDismissedItem)
@@ -421,24 +429,31 @@ export function createOptimisticUpdateHelpers(
 					const refreshedPageData = get(notificationStore.pageData);
 					const refreshedItems = refreshedPageData.items;
 
-					if (paginationInfo.shouldNavigateToPreviousPage && paginationInfo.targetPage) {
-						// Navigated to previous page - focus last item
+					if (paginationInfo.shouldNavigateToPreviousPage || nextItemInfo.willPageBeEmpty) {
+						// Resume at the page boundary after an emptied list refills.
 						if (refreshedItems.length > 0) {
-							const lastIndex = refreshedItems.length - 1;
-							keyboardStore.focusAt(lastIndex);
-							// If in split mode and viewing detail, open the last item
+							const targetIndex = paginationInfo.shouldNavigateToPreviousPage
+								? refreshedItems.length - 1
+								: 0;
+							keyboardStore.focusAt(targetIndex);
 							if (isInSplitMode && wasViewingDismissedItem) {
-								const lastItem = refreshedItems[lastIndex];
-								const lastItemId = lastItem.githubId ?? lastItem.id;
-								if (lastItemId) {
-									detailStore.openDetail(lastItemId);
-									await sharedHelpers.updateUrlWithDetailId(lastItemId);
+								const targetItem = refreshedItems[targetIndex];
+								const targetItemId = targetItem.githubId ?? targetItem.id;
+								if (targetItemId) {
+									detailStore.openDetail(targetItemId);
+									await sharedHelpers.updateUrlWithDetailId(targetItemId);
 								}
 							}
 						}
 					} else if (nextItemInfo.targetIndex !== null && refreshedItems.length > 0) {
-						// Re-validate focus after refresh - ensure target index is still valid
-						const validTargetIndex = Math.min(nextItemInfo.targetIndex, refreshedItems.length - 1);
+						const targetId = actualTargetNotification?.githubId ?? actualTargetNotification?.id;
+						const refreshedTargetIndex = refreshedItems.findIndex(
+							(item) => (item.githubId ?? item.id) === targetId
+						);
+						const validTargetIndex =
+							refreshedTargetIndex !== -1
+								? refreshedTargetIndex
+								: Math.min(nextItemInfo.targetIndex, refreshedItems.length - 1);
 						keyboardStore.focusAt(validTargetIndex);
 						await tick();
 
@@ -491,7 +506,15 @@ export function createOptimisticUpdateHelpers(
 					}
 
 					// Refresh page data and view counts
+					const refreshFocus = get(keyboardStore.keyboardFocusIndex);
+					const refreshDetail = get(detailStore.detailNotificationId);
 					await options.onRefreshViewCounts?.();
+					if (
+						actionRevision !== actionGeneration ||
+						refreshFocus !== get(keyboardStore.keyboardFocusIndex) ||
+						refreshDetail !== get(detailStore.detailNotificationId)
+					)
+						return;
 
 					// Restore keyboard focus if this item was focused
 					if (affectsFocusedItem) {

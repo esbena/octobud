@@ -97,7 +97,7 @@ describe("NotificationActionController", () => {
 	let optimisticUpdateHelpers: ReturnType<typeof createOptimisticUpdateHelpers>;
 	let sharedHelpers: ReturnType<typeof createSharedHelpers>;
 	let controller: ReturnType<typeof createNotificationActionController>;
-	let refreshViewCounts: () => Promise<void>;
+	let refreshAfterAction: () => Promise<void>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -181,8 +181,7 @@ describe("NotificationActionController", () => {
 			sharedHelpers
 		);
 
-		refreshViewCounts = vi.fn<() => Promise<void>>(async () => {});
-		const refreshTagCounts = vi.fn<() => Promise<void>>(async () => {});
+		refreshAfterAction = vi.fn<() => Promise<void>>(async () => {});
 		controller = createNotificationActionController(
 			{
 				notificationStore,
@@ -194,8 +193,7 @@ describe("NotificationActionController", () => {
 			options,
 			optimisticUpdateHelpers,
 			sharedHelpers,
-			refreshViewCounts,
-			refreshTagCounts
+			refreshAfterAction
 		);
 	});
 
@@ -331,13 +329,13 @@ describe("NotificationActionController", () => {
 			expect(notificationStore.addPendingMarkRead).toHaveBeenCalledWith("gh-1");
 		});
 
-		it("calls refreshViewCounts after optimistic update", () => {
+		it("schedules the shared refresh after optimistic update", () => {
 			const notification = createMockNotification({ isRead: false });
 			vi.mocked(markNotificationRead).mockResolvedValue({} as any);
 
 			controller.softMarkRead(notification);
 
-			expect(refreshViewCounts).toHaveBeenCalled();
+			expect(refreshAfterAction).toHaveBeenCalledTimes(1);
 		});
 
 		it("calls markNotificationRead with the correct key", () => {
@@ -378,8 +376,8 @@ describe("NotificationActionController", () => {
 			// Second call: revert (original notification with isRead: false)
 			expect(notificationStore.updateNotification).toHaveBeenNthCalledWith(2, notification);
 
-			// refreshViewCounts called twice: once optimistic, once on revert
-			expect(refreshViewCounts).toHaveBeenCalledTimes(2);
+			// Refresh once optimistically and once after the write settles.
+			expect(refreshAfterAction).toHaveBeenCalledTimes(2);
 		});
 
 		it("removes pending key in finally block on success", async () => {

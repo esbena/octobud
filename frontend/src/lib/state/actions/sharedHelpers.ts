@@ -159,7 +159,7 @@ export function createSharedHelpers(
 		if (options.navigateToUrl && typeof window !== "undefined") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("id", notificationId);
-			await options.navigateToUrl(url.pathname + url.search, { replace: true });
+			await options.navigateToUrl(url.pathname + url.search, { replace: true, shallow: true });
 		}
 	}
 
@@ -171,7 +171,7 @@ export function createSharedHelpers(
 		if (options.navigateToUrl && typeof window !== "undefined") {
 			const url = new URL(window.location.href);
 			url.searchParams.delete("id");
-			await options.navigateToUrl(url.pathname + url.search, { replace: true });
+			await options.navigateToUrl(url.pathname + url.search, { replace: true, shallow: true });
 		}
 	}
 
