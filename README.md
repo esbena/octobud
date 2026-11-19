@@ -75,6 +75,16 @@ Use each item's GitHub link to reply or take action.
 #### 📥 Full Lifecycle Management
 Star, Snooze, Archive, Tag, and Mute notifications
 
+Individual notification actions update the list immediately after saving. Background refreshes
+are debounced by 250 ms (at most one second of waiting) and coalesced while a refresh
+is running, so rapid triage does not recount every view for each action.
+
+Settings → Preferences → **Built-in sidebar views** lets you independently hide
+Inbox, Starred, Snoozed, Archive, and Everything from the sidebar. All are shown
+by default, and the choices are saved locally. Hidden views still open through
+direct links, keyboard navigation, and the macOS menu bar without reappearing in
+the sidebar. You can create custom views as alternatives.
+
 ### More
 
 | Feature | Description |

@@ -17,6 +17,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
+import { BUILT_IN_VIEWS } from "$lib/state/types";
 vi.mock("$app/environment", () => ({ browser: true }));
 const storage = new Map<string, string>();
 vi.stubGlobal("localStorage", {
@@ -43,6 +44,49 @@ describe("NotificationSettings Store", () => {
 	});
 
 	describe("createNotificationSettingsStore", () => {
+		it("shows every built-in by default and persists independent visibility choices", () => {
+			const store = createNotificationSettingsStore();
+			for (const { slug } of Object.values(BUILT_IN_VIEWS)) {
+				expect(get(store.builtInViewVisibility)[slug]).toBe(true);
+				store.setBuiltInViewVisible(slug, false);
+				expect(get(createNotificationSettingsStore().builtInViewVisibility)[slug]).toBe(false);
+			}
+			expect(Object.values(get(store.builtInViewVisibility))).not.toContain(true);
+
+			store.setBuiltInViewVisible("inbox", true);
+			const reloaded = get(createNotificationSettingsStore().builtInViewVisibility);
+			expect(reloaded.inbox).toBe(true);
+			expect(reloaded.starred).toBe(false);
+			expect(reloaded.snoozed).toBe(false);
+			expect(reloaded.archive).toBe(false);
+			expect(reloaded.everything).toBe(false);
+		});
+
+		it("synchronizes built-in visibility from storage without changing count preferences", () => {
+			const store = createNotificationSettingsStore();
+			store.setShowTotalCounts(true);
+			localStorage.setItem("octobud:sidebar:builtInViewVisible:inbox", "false");
+			store.syncFromStorage();
+			expect(get(store.builtInViewVisibility).inbox).toBe(false);
+			expect(get(store.builtInViewVisibility).starred).toBe(true);
+			expect(get(store.showTotalCounts)).toBe(true);
+			localStorage.setItem("octobud:sidebar:builtInViewVisible:inbox", "true");
+			store.syncFromStorage();
+			expect(get(store.builtInViewVisibility).inbox).toBe(true);
+		});
+
+		it("does not overwrite another window's independent visibility choice before storage sync", () => {
+			const first = createNotificationSettingsStore();
+			const second = createNotificationSettingsStore();
+			first.setBuiltInViewVisible("inbox", false);
+			second.setBuiltInViewVisible("starred", false);
+			first.syncFromStorage();
+			second.syncFromStorage();
+			expect(get(first.builtInViewVisibility).inbox).toBe(false);
+			expect(get(first.builtInViewVisibility).starred).toBe(false);
+			expect(get(second.builtInViewVisibility)).toEqual(get(first.builtInViewVisibility));
+		});
+
 		it("keeps the What's new default opt-in and persists the preference", () => {
 			const store = createNotificationSettingsStore();
 			expect(get(store.whatsNewDefault)).toBe(false);

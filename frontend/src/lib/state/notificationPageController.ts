@@ -43,6 +43,7 @@ import { createNotificationActionController } from "./actions/notificationAction
 import { createBulkActionController } from "./actions/bulkActionController";
 import { createRepositoryFilterActionController } from "./actions/repositoryFilterActionController";
 import { createKeyboardShortcutActionController } from "./actions/keyboardShortcutActionController";
+import { createActionRefresh } from "./actions/actionRefresh";
 
 /**
  * V2 Notification Page Controller
@@ -80,6 +81,19 @@ export function createNotificationPageController(
 		normalizeViewId(initialData.selectedViewId ?? BUILT_IN_VIEWS.inbox.id)
 	);
 	const eventBus = createEventBus();
+	const actionRefresh = createActionRefresh({
+		notificationStore,
+		paginationStore,
+		queryStore,
+		viewStore,
+		repositoryFilterStore,
+		repositoryPinsStore,
+	});
+	const actionOptions: ControllerOptions = {
+		...options,
+		onRefresh: actionRefresh.refresh,
+		onRefreshViewCounts: actionRefresh.refresh,
+	};
 
 	// Create shared infrastructure
 	const debounceManager = createDebounceManager();
@@ -143,7 +157,7 @@ export function createNotificationPageController(
 			keyboardStore,
 			uiStore,
 		},
-		options,
+		actionOptions,
 		sharedHelpers
 	);
 
@@ -156,11 +170,10 @@ export function createNotificationPageController(
 			selectionStore,
 			keyboardStore,
 		},
-		options,
+		actionOptions,
 		optimisticUpdateHelpers,
 		sharedHelpers,
-		viewActions.refreshViewCounts,
-		viewActions.refreshTagCounts
+		actionRefresh.refresh
 	);
 
 	// Create detail controller with markRead from notificationActions (clean dependency order)
@@ -202,7 +215,7 @@ export function createNotificationPageController(
 			uiStore,
 			repositoryFilterStore,
 		},
-		options,
+		actionOptions,
 		sharedHelpers
 	);
 
@@ -266,6 +279,7 @@ export function createNotificationPageController(
 		// Utility/helper actions
 		destroy: () => {
 			debounceManager.clearAll();
+			actionRefresh.destroy();
 		},
 	};
 

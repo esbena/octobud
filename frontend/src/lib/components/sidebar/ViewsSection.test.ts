@@ -5,6 +5,9 @@ import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
 import ViewsSection from "./ViewsSection.svelte";
 import SidebarCollapsed from "./SidebarCollapsed.svelte";
 import SidebarHover from "./SidebarHover.svelte";
+import SidebarExpanded from "./SidebarExpanded.svelte";
+import PreferencesSection from "../settings/PreferencesSection.svelte";
+import { BUILT_IN_VIEWS } from "$lib/state/types";
 
 vi.mock("svelte/transition", () => ({ fly: () => undefined }));
 
@@ -48,9 +51,81 @@ function sharedProps() {
 	};
 }
 
-afterEach(() => getNotificationSettingsStore().setShowTotalCounts(false));
+afterEach(() => {
+	const settings = getNotificationSettingsStore();
+	settings.setShowTotalCounts(false);
+	for (const { slug } of Object.values(BUILT_IN_VIEWS)) {
+		settings.setBuiltInViewVisible(slug, true);
+	}
+});
 
 describe("sidebar view visibility", () => {
+	it.each(["expanded", "collapsed", "hover"] as const)(
+		"toggles all built-ins independently through Preferences in the %s sidebar",
+		async (layout) => {
+			const builtInViewList = Object.values(BUILT_IN_VIEWS).map((view) => ({
+				...view,
+				unreadCount: 0,
+			}));
+			const props = {
+				...sharedProps(),
+				builtInViewList,
+				selectedViewId: BUILT_IN_VIEWS.inbox.id,
+				selectedViewSlug: "inbox",
+				userViews: [helper, visible, legacy],
+				reorderMode: false,
+				reordering: false,
+				draggedOverViewId: null,
+				onNewView: vi.fn(),
+				onEditView: vi.fn(),
+				onToggleReorderMode: vi.fn(),
+				onDragStart: vi.fn(),
+				onDragOver: vi.fn(),
+				onDrop: vi.fn(),
+				onDragEnd: vi.fn(),
+				onSelectTag: vi.fn(),
+				onToggleTagsCollapsed: vi.fn(),
+				onNewTag: vi.fn(),
+				onEditTag: vi.fn(),
+				onToggleTagReorderMode: vi.fn(),
+				onTagDragStart: vi.fn(),
+				onTagDragOver: vi.fn(),
+				onTagDrop: vi.fn(),
+				onTagDragEnd: vi.fn(),
+				onMouseEnter: vi.fn(),
+				onMouseLeave: vi.fn(),
+			};
+			if (layout === "expanded") render(SidebarExpanded, props);
+			else if (layout === "collapsed") render(SidebarCollapsed, props);
+			else render(SidebarHover, props);
+			const preferences = render(PreferencesSection);
+
+			for (const view of builtInViewList) {
+				expect(screen.getByRole("button", { name: view.name })).toBeInTheDocument();
+			}
+			for (const view of builtInViewList) {
+				await fireEvent.click(
+					preferences.getByRole("checkbox", { name: `Show ${view.name} in sidebar` })
+				);
+				expect(screen.queryByRole("button", { name: view.name })).not.toBeInTheDocument();
+			}
+			expect(screen.getByRole("button", { name: "Visible" })).toBeInTheDocument();
+			expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+			await fireEvent.click(screen.getByRole("button", { name: "More views" }));
+			expect(screen.getByRole("button", { name: "Helper" })).toBeInTheDocument();
+			for (const view of builtInViewList) {
+				expect(screen.queryByRole("button", { name: view.name })).not.toBeInTheDocument();
+			}
+			for (const view of builtInViewList) {
+				await fireEvent.click(
+					preferences.getByRole("checkbox", { name: `Show ${view.name} in sidebar` })
+				);
+				await fireEvent.click(screen.getByRole("button", { name: view.name }));
+				expect(props.onSelectView).toHaveBeenLastCalledWith(view.slug);
+			}
+		}
+	);
+
 	it.each([false, true])(
 		"keeps hover helper views hidden without badges (totals %s)",
 		async (showTotals) => {

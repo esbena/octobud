@@ -16,12 +16,14 @@
 import { writable, get, type Writable } from "svelte/store";
 import { browser } from "$app/environment";
 import type { WhatsNewSelection } from "$lib/utils/whatsNewCutoff";
+import { BUILT_IN_VIEWS } from "$lib/state/types";
 
 const NOTIFICATIONS_ENABLED_KEY = "octobud:notifications:enabled";
 const FAVICON_BADGE_ENABLED_KEY = "octobud:notifications:faviconBadge";
 const TIMELINE_AUTO_SCROLL_KEY = "octobud:timeline:autoScroll";
 const HOVER_ACTIONS_ENABLED_KEY = "octobud:notifications:hoverActions";
 const SHOW_TOTAL_COUNTS_KEY = "octobud:sidebar:showTotalCounts";
+const BUILT_IN_VIEW_VISIBLE_KEY = "octobud:sidebar:builtInViewVisible:";
 const WHATS_NEW_DEFAULT_KEY = "octobud:timeline:whatsNewDefault";
 const WHATS_NEW_BASELINE_KEY = "octobud:timeline:whatsNewBaseline";
 
@@ -42,40 +44,40 @@ function isWhatsNewSelection(value: string | null): value is WhatsNewSelection {
  */
 export function createNotificationSettingsStore() {
 	const storage = typeof localStorage !== "undefined" ? localStorage : null;
+	const readBuiltInViewVisibility = (): Record<string, boolean> =>
+		Object.fromEntries(
+			Object.values(BUILT_IN_VIEWS).map(({ slug }) => [
+				slug,
+				storage?.getItem(BUILT_IN_VIEW_VISIBLE_KEY + slug) !== "false",
+			])
+		);
+	let persistedVisibility = readBuiltInViewVisibility();
+	const builtInViewVisibility = writable(persistedVisibility);
 	// Load from localStorage, default to true (enabled)
-	const storedEnabled =
-		storage
-			? storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false" // Default to true
-			: true;
+	const storedEnabled = storage
+		? storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false" // Default to true
+		: true;
 
-	const storedFaviconBadgeEnabled =
-		storage
-			? storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false" // Default to true
-			: true;
+	const storedFaviconBadgeEnabled = storage
+		? storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false" // Default to true
+		: true;
 
 	// Auto-scroll defaults to false (opt-in feature)
-	const storedTimelineAutoScroll =
-		storage
-			? storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true"
-			: false;
+	const storedTimelineAutoScroll = storage
+		? storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true"
+		: false;
 
-	const storedHoverActionsEnabled =
-		storage
-			? storage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false"
-			: true;
+	const storedHoverActionsEnabled = storage
+		? storage.getItem(HOVER_ACTIONS_ENABLED_KEY) !== "false"
+		: true;
 
 	const notificationsEnabled = writable<boolean>(storedEnabled);
 	const faviconBadgeEnabled = writable<boolean>(storedFaviconBadgeEnabled);
 	const timelineAutoScroll = writable<boolean>(storedTimelineAutoScroll);
 	const hoverActionsEnabled = writable<boolean>(storedHoverActionsEnabled);
-	const showTotalCounts = writable(
-		!!storage && storage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true"
-	);
-	const whatsNewDefault = writable(
-		!!storage && storage.getItem(WHATS_NEW_DEFAULT_KEY) === "true"
-	);
-	const storedWhatsNewBaseline =
-		storage ? storage.getItem(WHATS_NEW_BASELINE_KEY) : null;
+	const showTotalCounts = writable(!!storage && storage.getItem(SHOW_TOTAL_COUNTS_KEY) === "true");
+	const whatsNewDefault = writable(!!storage && storage.getItem(WHATS_NEW_DEFAULT_KEY) === "true");
+	const storedWhatsNewBaseline = storage ? storage.getItem(WHATS_NEW_BASELINE_KEY) : null;
 	const defaultWhatsNewSelection: WhatsNewSelection = isWhatsNewSelection(storedWhatsNewBaseline)
 		? storedWhatsNewBaseline
 		: "last_read";
@@ -88,6 +90,14 @@ export function createNotificationSettingsStore() {
 
 	// Persist to localStorage and notify service worker
 	if (browser && storage) {
+		builtInViewVisibility.subscribe((visibility) => {
+			for (const { slug } of Object.values(BUILT_IN_VIEWS)) {
+				if (visibility[slug] !== persistedVisibility[slug]) {
+					storage.setItem(BUILT_IN_VIEW_VISIBLE_KEY + slug, visibility[slug].toString());
+				}
+			}
+			persistedVisibility = visibility;
+		});
 		notificationsEnabled.subscribe((value) => {
 			storage.setItem(NOTIFICATIONS_ENABLED_KEY, value.toString());
 
@@ -124,11 +134,13 @@ export function createNotificationSettingsStore() {
 		timelineAutoScroll: timelineAutoScroll as Writable<boolean>,
 		hoverActionsEnabled: hoverActionsEnabled as Writable<boolean>,
 		showTotalCounts,
+		builtInViewVisibility,
 		whatsNewDefault,
 		whatsNewBaseline,
 		catchUpSelection,
 		syncFromStorage: () => {
 			if (!storage) return;
+			builtInViewVisibility.set(readBuiltInViewVisibility());
 			const newEnabled = storage.getItem(NOTIFICATIONS_ENABLED_KEY) !== "false";
 			const newFaviconBadge = storage.getItem(FAVICON_BADGE_ENABLED_KEY) !== "false";
 			const newAutoScroll = storage.getItem(TIMELINE_AUTO_SCROLL_KEY) === "true";
@@ -165,6 +177,9 @@ export function createNotificationSettingsStore() {
 		},
 		setShowTotalCounts: (enabled: boolean) => {
 			showTotalCounts.set(enabled);
+		},
+		setBuiltInViewVisible: (slug: keyof typeof BUILT_IN_VIEWS, visible: boolean) => {
+			builtInViewVisibility.update((visibility) => ({ ...visibility, [slug]: visible }));
 		},
 		setWhatsNewDefault: (enabled: boolean) => {
 			whatsNewDefault.set(enabled);
