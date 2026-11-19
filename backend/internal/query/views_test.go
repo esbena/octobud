@@ -39,8 +39,8 @@ func TestViewCompiler(t *testing.T) {
 	require.Equal(t, int32(2), compiled.Limit)
 	require.Equal(t, int32(8), compiled.Offset)
 	where := strings.Join(compiled.Where, " AND ")
-	require.Contains(t, where, "n.id IN (SELECT n.id FROM notifications n")
-	require.Contains(t, where, "NOT (n.id IN")
+	require.NotContains(t, where, "SELECT n.id FROM notifications n")
+	require.Contains(t, where, "NOT (COALESCE(")
 	require.NotContains(t, where, "LIMIT")
 	require.Equal(
 		t,

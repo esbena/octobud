@@ -293,14 +293,20 @@ func (b *Builder) handleInOperator(values []string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			subquery := "SELECT n.id FROM notifications n"
-			if len(viewQuery.Joins) > 0 {
-				subquery += " " + strings.Join(viewQuery.Joins, " ")
+			b.args = append(b.args, viewQuery.Args...)
+			if len(viewQuery.Joins) == 0 {
+				filter := "1"
+				if len(viewQuery.Where) > 0 {
+					filter = strings.Join(viewQuery.Where, " AND ")
+				}
+				// Membership is false when the saved filter evaluates to NULL, even under NOT.
+				conditions = append(conditions, "COALESCE(("+filter+"), 0)")
+				continue
 			}
+			subquery := "SELECT n.id FROM notifications n " + strings.Join(viewQuery.Joins, " ")
 			if len(viewQuery.Where) > 0 {
 				subquery += " WHERE " + strings.Join(viewQuery.Where, " AND ")
 			}
-			b.args = append(b.args, viewQuery.Args...)
 			conditions = append(conditions, "n.id IN ("+subquery+")")
 		}
 	}

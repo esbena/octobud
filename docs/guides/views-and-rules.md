@@ -119,6 +119,8 @@ The low-priority view keeps its own unread badge. Topic-focused views can overla
 
 Membership follows saved query changes immediately. It does not depend on sidebar order, which views you have opened, or their default repository selections. Renaming a view updates its references in other saved view queries. Deletion is blocked until dependent views remove their references.
 
+Octobud evaluates saved filters that use only notification fields or related-record lookups directly within the enclosing query, rather than building a separate set of notification IDs for each referenced view.
+
 Use the full view name, matched case-insensitively. Missing references and cycles are errors.
 
 ## Rules
