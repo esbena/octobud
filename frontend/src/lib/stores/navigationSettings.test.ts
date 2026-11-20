@@ -55,3 +55,41 @@ it("does not let an older read overwrite a newer save", async () => {
 	await refreshing;
 	expect(get(navigationNewTab)).toBe(true);
 });
+
+it("does not let an older read overwrite a newer refresh", async () => {
+	let finishRead!: (value: Response) => void;
+	const read = new Promise<Response>((resolve) => {
+		finishRead = resolve;
+	});
+	vi.stubGlobal(
+		"fetch",
+		vi
+			.fn()
+			.mockReturnValueOnce(read)
+			.mockResolvedValueOnce(new Response(JSON.stringify({ newTab: true })))
+	);
+	const older = refreshNavigationSettings();
+	await refreshNavigationSettings();
+	finishRead(new Response(JSON.stringify({ newTab: false })));
+	await older;
+	expect(get(navigationNewTab)).toBe(true);
+});
+
+it("does not let a read started during a save overwrite the saved setting", async () => {
+	let finishSave!: (value: Response) => void;
+	let finishRead!: (value: Response) => void;
+	const save = new Promise<Response>((resolve) => {
+		finishSave = resolve;
+	});
+	const read = new Promise<Response>((resolve) => {
+		finishRead = resolve;
+	});
+	vi.stubGlobal("fetch", vi.fn().mockReturnValueOnce(save).mockReturnValueOnce(read));
+	const saving = setNavigationNewTab(true);
+	const refreshing = refreshNavigationSettings();
+	finishSave(new Response(JSON.stringify({ newTab: true })));
+	await saving;
+	finishRead(new Response(JSON.stringify({ newTab: false })));
+	await refreshing;
+	expect(get(navigationNewTab)).toBe(true);
+});
