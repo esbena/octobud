@@ -318,6 +318,15 @@ func (t *Tray) openBrowser(url string) {
 	ctx := context.Background()
 	var err error
 	var tabFound bool
+	t.mu.RLock()
+	broadcaster := t.navBroadcaster
+	t.mu.RUnlock()
+	if broadcaster != nil && broadcaster.NewTabMode() {
+		if err := exec.CommandContext(ctx, "open", url).Start(); err != nil {
+			t.logger.Error("Failed to open new tab", zap.Error(err))
+		}
+		return
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		// Try to activate existing tab first, then fall back to opening new tab

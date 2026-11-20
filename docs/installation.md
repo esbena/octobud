@@ -56,6 +56,14 @@ On macOS, Octobud runs as a menu bar app. Click the menu bar icon to access:
 - **Settings** - Opens Octobud settings in your browser
 - **Quit** - Exit the application
 
+In Settings under Appearance, enable **Open menu bar links in a new tab** to
+disable the navigation event streams used by the menu bar. Menu destinations
+are handed to the default browser instead; whether they open in a new tab or
+window depends on the browser and its preferences. This can prevent many
+Octobud tabs from exhausting the browser's HTTP/1.1 connections. Existing
+streams close when the setting is enabled; after disabling it, other tabs
+resume their streams when they become visible or are reloaded.
+
 ## Configuration
 
 ### Command Line Options
@@ -170,6 +178,10 @@ When running as a service, use:
 ```bash
 log show --predicate 'process == "octobud"' --last 1h
 ```
+
+When menu-bar navigation streams are enabled, `/api/navigation-events` in the
+browser's Network panel normally stays pending and sends a heartbeat every 30
+seconds.
 
 ## Troubleshooting
 

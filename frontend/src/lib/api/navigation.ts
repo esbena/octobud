@@ -31,6 +31,7 @@ interface NavigationEvent {
 interface NavigationEventSourceOptions {
 	onNavigate: (url: string) => void;
 	onError?: (error: Event) => void;
+	onDisabled?: () => void;
 	reconnectDelay?: number;
 	maxReconnectAttempts?: number;
 }
@@ -50,6 +51,7 @@ export class NavigationEventSource {
 			maxReconnectAttempts: options.maxReconnectAttempts ?? 10,
 			onNavigate: options.onNavigate,
 			onError: options.onError ?? (() => {}),
+			onDisabled: options.onDisabled ?? (() => {}),
 		};
 	}
 
@@ -80,19 +82,18 @@ export class NavigationEventSource {
 		this.reconnectAttempts = 0;
 
 		try {
-			this.eventSource = new EventSource("/api/navigation-events");
+			const source = new EventSource("/api/navigation-events");
+			this.eventSource = source;
 
-			this.eventSource.addEventListener("navigate", (event: MessageEvent) => {
+			source.addEventListener("disabled", () => {
+				if (this.eventSource !== source) return;
+				this.disconnect();
+				this.options.onDisabled();
+			});
+
+			source.addEventListener("navigate", (event: MessageEvent) => {
+				if (this.eventSource !== source) return;
 				try {
-					// Check if connection is still valid before processing
-					if (!this.eventSource) {
-						console.warn(
-							`${LOG_PREFIX} Received navigate event but eventSource is null, reconnecting...`
-						);
-						this.connect();
-						return;
-					}
-
 					const readyState = this.eventSource.readyState;
 					if (readyState === EventSource.CLOSED) {
 						console.warn(`${LOG_PREFIX} Connection closed, reconnecting...`);

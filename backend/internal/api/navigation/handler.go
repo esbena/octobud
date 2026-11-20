@@ -17,12 +17,16 @@ package navigation
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/octobud-hq/octobud/backend/internal/api/helpers"
 	"go.uber.org/zap"
 )
+
+const eventWriteTimeout = 15 * time.Second
 
 // Handler handles navigation-related HTTP routes.
 type Handler struct {
@@ -41,6 +45,29 @@ func NewHandler(logger *zap.Logger, broadcaster *Broadcaster) *Handler {
 // Register registers navigation routes on the provided router.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/navigation-events", h.handleSSE)
+	r.Get("/navigation-settings", h.handleGetSettings)
+	r.Put("/navigation-settings", h.handlePutSettings)
+}
+
+func (h *Handler) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	helpers.WriteJSON(w, http.StatusOK, map[string]bool{"newTab": h.broadcaster.NewTabMode()})
+}
+
+func (h *Handler) handlePutSettings(w http.ResponseWriter, r *http.Request) {
+	var settings struct {
+		NewTab *bool `json:"newTab"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil || settings.NewTab == nil {
+		helpers.WriteError(w, http.StatusBadRequest, "newTab must be a boolean")
+		return
+	}
+	if err := h.broadcaster.SetNewTabMode(*settings.NewTab); err != nil {
+		h.logger.Error("Failed to save navigation settings", zap.Error(err))
+		helpers.WriteError(w, http.StatusInternalServerError, "failed to save navigation settings")
+		return
+	}
+	h.handleGetSettings(w, r)
 }
 
 // handleSSE handles Server-Sent Events connections for navigation commands.
@@ -51,25 +78,24 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	// Flush headers immediately
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
 	// Subscribe to events
-	eventCh := h.broadcaster.Subscribe()
+	eventCh, disabled, enabled := h.broadcaster.SubscribeIfEnabled()
+	if !enabled {
+		if err := sendEvent(w, http.NewResponseController(w), "disabled", nil); err != nil {
+			h.logger.Warn("Failed to send navigation disabled event", zap.Error(err))
+		}
+		return
+	}
 	defer h.broadcaster.Unsubscribe(eventCh)
+	response := http.NewResponseController(w)
 
 	// Send initial connection message
-	err := h.sendEvent(w, "connected", map[string]interface{}{
+	err := sendEvent(w, response, "connected", map[string]interface{}{
 		"message": "Connected to navigation events",
 	})
 	if err != nil {
 		h.logger.Error("Failed to send initial connected event", zap.Error(err))
-		return // Exit early, defer will unsubscribe
-	}
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
+		return
 	}
 
 	// Keep connection alive with periodic pings
@@ -80,6 +106,11 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
+		case <-disabled:
+			if err := sendEvent(w, response, "disabled", nil); err != nil {
+				h.logger.Warn("Failed to send navigation disabled event", zap.Error(err))
+			}
+			return
 		case event := <-eventCh:
 			// Check if context is done before trying to send
 			select {
@@ -88,24 +119,13 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 			default:
 			}
 
-			err := h.sendEvent(w, "navigate", event)
+			err := sendEvent(w, response, "navigate", event)
 			if err != nil {
 				h.logger.Error(
 					"Failed to send navigation event",
-					zap.String("url", event.URL),
 					zap.Error(err),
 				)
-				return // Exit handler loop, defer will unsubscribe
-			}
-
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
-				// Check if context was canceled after flush
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
+				return
 			}
 
 		case <-ticker.C:
@@ -116,16 +136,12 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 			default:
 			}
 
-			err := h.sendEvent(w, "ping", map[string]interface{}{
+			err := sendEvent(w, response, "ping", map[string]interface{}{
 				"timestamp": time.Now().Unix(),
 			})
 			if err != nil {
 				h.logger.Warn("Failed to send keepalive ping", zap.Error(err))
-				return // Exit handler loop, defer will unsubscribe
-			}
-
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
+				return
 			}
 
 		case <-ctx.Done():
@@ -134,43 +150,26 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// sendEvent sends an SSE-formatted event to the client.
-// Returns an error if the write fails, which indicates the connection is broken.
-func (h *Handler) sendEvent(
+func sendEvent(
 	w http.ResponseWriter,
+	response *http.ResponseController,
 	eventType string,
-	data interface{},
-	_ ...string, // urlForLogging - reserved for future logging enhancements
+	data any,
 ) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		h.logger.Error(
-			"Failed to marshal SSE event",
-			zap.String("event_type", eventType),
-			zap.Error(err),
-		)
 		return err
 	}
 
-	// SSE format: "event: <type>\ndata: <json>\n\n"
-	_, err = w.Write([]byte("event: " + eventType + "\n"))
-	if err != nil {
-		h.logger.Error(
-			"Failed to write SSE event type",
-			zap.String("event_type", eventType),
-			zap.Error(err),
-		)
+	// Bound each write, not the idle time between events on this stream.
+	if err := response.SetWriteDeadline(time.Now().Add(eventWriteTimeout)); err != nil {
 		return err
 	}
-	_, err = w.Write([]byte("data: " + string(jsonData) + "\n\n"))
-	if err != nil {
-		h.logger.Error(
-			"Failed to write SSE event data",
-			zap.String("event_type", eventType),
-			zap.Error(err),
-		)
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, jsonData); err != nil {
 		return err
 	}
-
-	return nil
+	if err := response.Flush(); err != nil {
+		return err
+	}
+	return response.SetWriteDeadline(time.Time{})
 }
