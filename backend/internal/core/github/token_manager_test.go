@@ -88,15 +88,16 @@ func TestObserver_UnauthorizedMarksInvalid(t *testing.T) {
 	}
 }
 
-func TestObserver_TwoHundredClearsInvalid(t *testing.T) {
+func TestObserver_SuccessfulFetchOrRevalidationClearsInvalid(t *testing.T) {
 	m, observe := newTestManager(t)
 	m.currentSource = TokenSourceStored
 
-	observe(http.StatusUnauthorized, nil)
-	observe(http.StatusOK, nil)
-
-	if got := m.GetTokenHealth(); got != TokenHealthOK {
-		t.Fatalf("expected %q after recovery, got %q", TokenHealthOK, got)
+	for _, status := range []int{http.StatusOK, http.StatusNotModified} {
+		observe(http.StatusUnauthorized, nil)
+		observe(status, nil)
+		if got := m.GetTokenHealth(); got != TokenHealthOK {
+			t.Fatalf("expected %q after %d, got %q", TokenHealthOK, status, got)
+		}
 	}
 }
 

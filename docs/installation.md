@@ -81,6 +81,20 @@ Octobud stores all data locally on macOS:
 The data directory contains:
 - `octobud.db` - SQLite database with all your notifications and settings
 - `.token_key` - Auto-generated encryption key for GitHub token storage (non-macOS only)
+- `github-http-cache-v1/` - Disposable cache of GitHub REST content responses (subjects, comments, reviews, timelines, and PR commits). Stop Octobud before deleting this directory to reclaim space or remove locally cached content.
+
+The cache sends a conditional request to GitHub before reusing a stored response.
+An ETag match can save a response-body download, but still requires a network
+round trip. Responses without a usable ETag aren't cached, and failed requests
+aren't replaced with stale content. Notification polling, token validation,
+rate-limit checks, and GraphQL are unchanged.
+
+Cache filenames key off the full request URL and headers (including credentials
+and API version) without storing their raw values as cache keys. Cached bodies
+remain on disk across restarts and token changes, protected by local file
+permissions, not encryption. The cache uses owner-only permissions on Unix-like
+systems and is disabled where it cannot set them. It skips bodies larger than
+8 MiB and has no automatic total-size or age eviction.
 
 ### GitHub Authentication
 

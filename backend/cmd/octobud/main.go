@@ -235,7 +235,12 @@ func runServer(cfg appConfig, trayApp *tray.Tray, logWriter *lumberjack.Logger) 
 	}
 
 	// Initialize GitHub client
-	githubClient := github.NewClient()
+	githubClient, cacheErr := github.NewClientWithContentCache(
+		filepath.Join(cfg.dataDir, "github-http-cache-v1"),
+	)
+	if cacheErr != nil {
+		log.Printf("Warning: GitHub HTTP disk cache disabled: %v", cacheErr)
+	}
 
 	// Create token manager
 	tokenManager := coregithub.NewTokenManager(
