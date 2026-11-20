@@ -125,6 +125,14 @@ func TestViewReferencesQueryConsumers(t *testing.T) {
 			`title:review in:"Project" OR (in:"Low priority" AND title:robot)`, 1, 100).Total)
 		require.Equal(t, int64(3), c.ListNotifications(t, `in:"Actionable"`, 1, 100).Total)
 		require.Equal(t, int64(1), c.ListNotifications(t, `in:"Low priority"`, 1, 100).Total)
+		createReferenceView(t, ts, "Bot author", `author:bot`)
+		require.Zero(t, c.ListNotifications(t, `in:"Bot author"`, 1, 100).Total)
+		require.Equal(
+			t,
+			int64(4),
+			c.ListNotifications(t, `in:inbox -in:"Bot author"`, 1, 100).Total,
+			"notifications with no author are not members of the saved view",
+		)
 		require.Equal(
 			t,
 			int64(2),
