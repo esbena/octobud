@@ -31,6 +31,7 @@ interface NavigationEvent {
 interface NavigationEventSourceOptions {
 	onNavigate: (url: string) => void;
 	onError?: (error: Event) => void;
+	onDisabled?: () => void;
 	reconnectDelay?: number;
 	maxReconnectAttempts?: number;
 }
@@ -50,6 +51,7 @@ export class NavigationEventSource {
 			maxReconnectAttempts: options.maxReconnectAttempts ?? 10,
 			onNavigate: options.onNavigate,
 			onError: options.onError ?? (() => {}),
+			onDisabled: options.onDisabled ?? (() => {}),
 		};
 	}
 
@@ -81,6 +83,11 @@ export class NavigationEventSource {
 
 		try {
 			this.eventSource = new EventSource("/api/navigation-events");
+
+			this.eventSource.addEventListener("disabled", () => {
+				this.disconnect();
+				this.options.onDisabled();
+			});
 
 			this.eventSource.addEventListener("navigate", (event: MessageEvent) => {
 				try {

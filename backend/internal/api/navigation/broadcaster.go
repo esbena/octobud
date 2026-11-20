@@ -18,6 +18,11 @@ package navigation
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -32,17 +37,101 @@ type NavigationEvent struct {
 
 // Broadcaster manages SSE connections and broadcasts navigation events.
 type Broadcaster struct {
-	logger  *zap.Logger
-	mu      sync.RWMutex
-	clients map[chan NavigationEvent]bool
+	logger   *zap.Logger
+	mu       sync.RWMutex
+	clients  map[chan NavigationEvent]bool
+	newTab   bool
+	path     string
+	disabled chan struct{}
 }
 
 // NewBroadcaster creates a new navigation event broadcaster.
 func NewBroadcaster(logger *zap.Logger) *Broadcaster {
 	return &Broadcaster{
-		logger:  logger,
-		clients: make(map[chan NavigationEvent]bool),
+		logger:   logger,
+		clients:  make(map[chan NavigationEvent]bool),
+		disabled: make(chan struct{}),
 	}
+}
+
+// NewPersistentBroadcaster stores the menu navigation preference in the data directory.
+func NewPersistentBroadcaster(logger *zap.Logger, dataDir string) (*Broadcaster, error) {
+	b := NewBroadcaster(logger)
+	b.path = filepath.Join(dataDir, "navigation-settings.json")
+	data, err := os.ReadFile(b.path)
+	if errors.Is(err, os.ErrNotExist) {
+		return b, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read navigation settings: %w", err)
+	}
+	var settings struct {
+		NewTab *bool `json:"newTab"`
+	}
+	if err := json.Unmarshal(data, &settings); err != nil || settings.NewTab == nil {
+		return nil, fmt.Errorf("invalid navigation settings: %s", b.path)
+	}
+	b.newTab = *settings.NewTab
+	if b.newTab {
+		close(b.disabled)
+	}
+	return b, nil
+}
+
+func (b *Broadcaster) NewTabMode() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.newTab
+}
+
+func (b *Broadcaster) SetNewTabMode(newTab bool) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.newTab == newTab {
+		return nil
+	}
+	if b.path != "" {
+		data, err := json.Marshal(struct {
+			NewTab bool `json:"newTab"`
+		}{newTab})
+		if err != nil {
+			return err
+		}
+		f, err := os.CreateTemp(filepath.Dir(b.path), ".navigation-settings-*")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(f.Name())
+		if _, err = f.Write(data); err != nil {
+			f.Close()
+			return err
+		}
+		if err = f.Close(); err != nil {
+			return err
+		}
+		if err = os.Rename(f.Name(), b.path); err != nil {
+			return err
+		}
+	}
+	b.newTab = newTab
+	if newTab {
+		close(b.disabled)
+	} else {
+		b.disabled = make(chan struct{})
+	}
+	return nil
+}
+
+// SubscribeIfEnabled observes the setting and subscribes under the same lock.
+func (b *Broadcaster) SubscribeIfEnabled() (chan NavigationEvent, <-chan struct{}, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.newTab {
+		return nil, nil, false
+	}
+	ch := make(chan NavigationEvent, 1)
+	b.clients[ch] = true
+	return ch, b.disabled, true
 }
 
 // Broadcast sends a navigation event to all connected clients.
@@ -53,12 +142,8 @@ func (b *Broadcaster) Broadcast(ctx context.Context, url string) {
 	}
 
 	b.mu.RLock()
-	clients := make([]chan NavigationEvent, 0, len(b.clients))
-	for ch := range b.clients {
-		clients = append(clients, ch)
-	}
+	defer b.mu.RUnlock()
 	clientCount := len(b.clients)
-	b.mu.RUnlock()
 
 	if clientCount == 0 {
 		b.logger.Debug("No clients connected for navigation broadcast", zap.String("url", url))
@@ -66,7 +151,7 @@ func (b *Broadcaster) Broadcast(ctx context.Context, url string) {
 	}
 
 	sentCount := 0
-	for _, ch := range clients {
+	for ch := range b.clients {
 		select {
 		case ch <- event:
 			sentCount++

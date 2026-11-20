@@ -93,6 +93,7 @@
 	import { getSWHealthStore } from "$lib/stores/swHealthStore";
 	import { setupServiceWorkerHandlers } from "$lib/utils/serviceWorkerMessageHandler";
 	import { NavigationEventSource } from "$lib/api/navigation";
+	import { navigationNewTab, refreshNavigationSettings } from "$lib/stores/navigationSettings";
 	import {
 		initializeFavicon,
 		updateFaviconBadge,
@@ -527,6 +528,14 @@
 	$: _timeStoreValue = $currentTime;
 
 	onMount(() => {
+		let unsubscribeNavigationSettings = () => {};
+		const refreshNavigation = () => {
+			if (document.visibilityState === "visible") {
+				void refreshNavigationSettings().catch((err) =>
+					console.error("Failed to refresh navigation settings", err)
+				);
+			}
+		};
 		// Hide splash screen once component is mounted
 		if (browser) {
 			document.body.classList.remove("loading");
@@ -554,8 +563,21 @@
 				onError: (error) => {
 					console.error("Navigation event source error", error);
 				},
+				onDisabled: () => {
+					navigationNewTab.set(true);
+					void refreshNavigationSettings().catch((err) =>
+						console.error("Failed to refresh navigation settings", err)
+					);
+				},
 			});
-			navEventSource.connect();
+			unsubscribeNavigationSettings = navigationNewTab.subscribe((newTab) => {
+				if (newTab === true) navEventSource?.disconnect();
+				else if (newTab === false) navEventSource?.connect();
+			});
+			document.addEventListener("visibilitychange", refreshNavigation);
+			void refreshNavigationSettings().catch((err) =>
+				console.error("Failed to load navigation settings", err)
+			);
 
 			// Ensure service worker message handler is set up (in case it wasn't set up at top level)
 			if (!swCleanup && "serviceWorker" in navigator) {
@@ -707,6 +729,8 @@
 		// Keyboard shortcuts are registered per-route (see views/[slug]/+page.svelte, settings/+page.svelte)
 
 		return () => {
+			document.removeEventListener("visibilitychange", refreshNavigation);
+			unsubscribeNavigationSettings();
 			if (unregisterShortcuts) {
 				unregisterShortcuts();
 			}

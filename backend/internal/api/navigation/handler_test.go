@@ -18,8 +18,12 @@ package navigation
 import (
 	"bufio"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,4 +66,83 @@ func TestNavigationStreamSurvivesServerWriteTimeout(t *testing.T) {
 	time.Sleep(2 * server.Config.WriteTimeout)
 	broadcaster.Broadcast(context.Background(), "/views/inbox")
 	expectEvent("navigate")
+}
+
+func TestNavigationSettingsCloseStreamsAndPersist(t *testing.T) {
+	dir := t.TempDir()
+	logger := zap.NewNop()
+	b, err := NewPersistentBroadcaster(logger, dir)
+	require.NoError(t, err)
+	require.False(t, b.NewTabMode())
+	router := chi.NewRouter()
+	NewHandler(logger, b).Register(router)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	client := server.Client()
+	client.Timeout = 3 * time.Second
+
+	responses := make([]*http.Response, 2)
+	readers := make([]*bufio.Reader, 2)
+	for i := range responses {
+		responses[i], err = client.Get(server.URL + "/navigation-events")
+		require.NoError(t, err)
+		defer responses[i].Body.Close()
+		readers[i] = bufio.NewReader(responses[i].Body)
+		line, readErr := readers[i].ReadString('\n')
+		require.NoError(t, readErr)
+		require.Equal(t, "event: connected\n", line)
+		_, readErr = readers[i].ReadString('\n')
+		require.NoError(t, readErr)
+		_, readErr = readers[i].ReadString('\n')
+		require.NoError(t, readErr)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, server.URL+"/navigation-settings", strings.NewReader(`{"newTab":true}`))
+	require.NoError(t, err)
+	res, err := client.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	res.Body.Close()
+	for _, reader := range readers {
+		body, readErr := io.ReadAll(reader)
+		require.NoError(t, readErr)
+		require.Contains(t, string(body), "event: disabled\n")
+	}
+	res, err = client.Get(server.URL + "/navigation-events")
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	res.Body.Close()
+	require.Contains(t, string(body), "event: disabled\n")
+
+	reloaded, err := NewPersistentBroadcaster(logger, dir)
+	require.NoError(t, err)
+	require.True(t, reloaded.NewTabMode())
+	info, err := os.Stat(filepath.Join(dir, "navigation-settings.json"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	require.NoError(t, reloaded.SetNewTabMode(false))
+	reloaded, err = NewPersistentBroadcaster(logger, dir)
+	require.NoError(t, err)
+	require.False(t, reloaded.NewTabMode())
+}
+
+func TestNavigationSettingWriteFailureDoesNotChangeMode(t *testing.T) {
+	dir := t.TempDir()
+	b, err := NewPersistentBroadcaster(zap.NewNop(), dir)
+	require.NoError(t, err)
+	b.path = filepath.Join(dir, "missing", "settings.json")
+	require.Error(t, b.SetNewTabMode(true))
+	require.False(t, b.NewTabMode())
+}
+
+func TestInvalidNavigationSettingsAreRejected(t *testing.T) {
+	b := NewBroadcaster(zap.NewNop())
+	router := chi.NewRouter()
+	NewHandler(zap.NewNop(), b).Register(router)
+	req := httptest.NewRequest(http.MethodPut, "/navigation-settings", strings.NewReader(`{"newTab":"yes"}`))
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusBadRequest, res.Code)
+	require.False(t, b.NewTabMode())
 }

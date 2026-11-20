@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/octobud-hq/octobud/backend/internal/api/helpers"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +45,29 @@ func NewHandler(logger *zap.Logger, broadcaster *Broadcaster) *Handler {
 // Register registers navigation routes on the provided router.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/navigation-events", h.handleSSE)
+	r.Get("/navigation-settings", h.handleGetSettings)
+	r.Put("/navigation-settings", h.handlePutSettings)
+}
+
+func (h *Handler) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	helpers.WriteJSON(w, http.StatusOK, map[string]bool{"newTab": h.broadcaster.NewTabMode()})
+}
+
+func (h *Handler) handlePutSettings(w http.ResponseWriter, r *http.Request) {
+	var settings struct {
+		NewTab *bool `json:"newTab"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil || settings.NewTab == nil {
+		helpers.WriteError(w, http.StatusBadRequest, "newTab must be a boolean")
+		return
+	}
+	if err := h.broadcaster.SetNewTabMode(*settings.NewTab); err != nil {
+		h.logger.Error("Failed to save navigation settings", zap.Error(err))
+		helpers.WriteError(w, http.StatusInternalServerError, "failed to save navigation settings")
+		return
+	}
+	h.handleGetSettings(w, r)
 }
 
 // handleSSE handles Server-Sent Events connections for navigation commands.
@@ -55,7 +79,13 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// Subscribe to events
-	eventCh := h.broadcaster.Subscribe()
+	eventCh, disabled, enabled := h.broadcaster.SubscribeIfEnabled()
+	if !enabled {
+		if err := sendEvent(w, http.NewResponseController(w), "disabled", nil); err != nil {
+			h.logger.Warn("Failed to send navigation disabled event", zap.Error(err))
+		}
+		return
+	}
 	defer h.broadcaster.Unsubscribe(eventCh)
 	response := http.NewResponseController(w)
 
@@ -76,6 +106,11 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
+		case <-disabled:
+			if err := sendEvent(w, response, "disabled", nil); err != nil {
+				h.logger.Warn("Failed to send navigation disabled event", zap.Error(err))
+			}
+			return
 		case event := <-eventCh:
 			// Check if context is done before trying to send
 			select {

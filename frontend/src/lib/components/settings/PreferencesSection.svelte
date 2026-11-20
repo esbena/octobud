@@ -16,12 +16,27 @@
 
 	import { getThemeStore } from "$lib/stores/themeStore";
 	import { getNotificationSettingsStore } from "$lib/stores/notificationSettings";
+	import { navigationNewTab, setNavigationNewTab } from "$lib/stores/navigationSettings";
 	import { toastStore } from "$lib/stores/toastStore";
 	import { WHATS_NEW_SELECTIONS } from "$lib/utils/whatsNewCutoff";
 	import { BUILT_IN_VIEWS } from "$lib/state/types";
 
 	const themeStore = getThemeStore();
 	const { theme } = themeStore;
+	let savingNavigation = false;
+
+	async function handleNavigationToggle(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		savingNavigation = true;
+		try {
+			await setNavigationNewTab(input.checked);
+		} catch (err) {
+			input.checked = $navigationNewTab === true;
+			toastStore.error(err instanceof Error ? err.message : "Failed to save navigation setting");
+		} finally {
+			savingNavigation = false;
+		}
+	}
 
 	const settingsStore = getNotificationSettingsStore();
 	const {
@@ -57,6 +72,31 @@
 </script>
 
 <div class="space-y-4">
+	<div class="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-800">
+		<div class="flex-1">
+			<span class="text-md font-medium text-gray-900 dark:text-gray-100"
+				>Open menu bar links in a new tab</span
+			>
+			<p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+				Disable navigation event streams and open menu bar destinations in the default browser
+				instead.
+			</p>
+		</div>
+		<label class="relative flex items-center cursor-pointer">
+			<input
+				type="checkbox"
+				aria-label="Open menu bar links in a new tab"
+				checked={$navigationNewTab === true}
+				disabled={$navigationNewTab === null || savingNavigation}
+				on:change={handleNavigationToggle}
+				class="sr-only peer"
+			/>
+			<div
+				class="relative w-9 h-5 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"
+			></div>
+		</label>
+	</div>
+
 	<!-- Theme Toggle -->
 	<div class="flex items-center justify-between py-1">
 		<div class="flex-1">

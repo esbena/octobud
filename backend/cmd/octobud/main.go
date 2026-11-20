@@ -307,7 +307,10 @@ func runServer(cfg appConfig, trayApp *tray.Tray, logWriter *lumberjack.Logger) 
 	}()
 
 	// Create navigation broadcaster for tray menu navigation
-	navBroadcaster := navigation.NewBroadcaster(logger)
+	navBroadcaster, err := navigation.NewPersistentBroadcaster(logger, cfg.dataDir)
+	if err != nil {
+		log.Fatalf("Failed to load navigation settings: %v", err)
+	}
 
 	// Configure API handler
 	// Always set up sync service - OAuth can configure the token later
