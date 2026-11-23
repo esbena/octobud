@@ -236,8 +236,13 @@ func (h *Handler) HandleGetVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleGetInstalledVersion handles GET /api/user/installed-version
-// Returns the version of the installed app bundle (from Info.plist on macOS)
+// Returns the running version for development builds, or the installed app bundle version.
 func (h *Handler) HandleGetInstalledVersion(w http.ResponseWriter, r *http.Request) {
+	if version.IsDevelopment() {
+		helpers.WriteJSON(w, http.StatusOK, VersionResponse{Version: version.Get()})
+		return
+	}
+
 	ctx := r.Context()
 
 	var installedVersion string
@@ -267,6 +272,11 @@ func (h *Handler) HandleGetInstalledVersion(w http.ResponseWriter, r *http.Reque
 // HandleRestart handles POST /api/user/restart
 // Restarts the application (macOS only)
 func (h *Handler) HandleRestart(w http.ResponseWriter, r *http.Request) {
+	if version.IsDevelopment() {
+		helpers.WriteError(w, http.StatusForbidden, "App restart is not available in development builds")
+		return
+	}
+
 	if h.osActionsSvc == nil {
 		helpers.WriteError(w, http.StatusServiceUnavailable, "App restart service not available")
 		return

@@ -24,7 +24,7 @@ install-tools:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 dev:
-	CGO_ENABLED=1 go run ./cmd/octobud --no-open
+	CGO_ENABLED=1 go run -ldflags="-X github.com/octobud-hq/octobud/backend/internal/version.Development=true" ./cmd/octobud --no-open
 
 test:
 	@mkdir -p web/dist

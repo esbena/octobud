@@ -23,6 +23,14 @@ package version
 // If not set at build time, it defaults to "dev".
 var Version = "dev"
 
+// Development is set to "true" at build time for local development builds.
+var Development = "false"
+
+// IsDevelopment reports whether this is a local development build.
+func IsDevelopment() bool {
+	return Development == "true"
+}
+
 // Get returns the version string.
 func Get() string {
 	return Version
