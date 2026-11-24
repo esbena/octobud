@@ -176,6 +176,8 @@ make build
 
 🎉 That's it! On macOS, Octobud will appear in your menu bar and open in your browser. On Linux and Windows, open `http://localhost:8808` manually. Connect your GitHub account using either **OAuth** or a **Personal Access Token (PAT)**. Both methods work equally well - choose OAuth for convenience, or PAT if your organization disables OAuth apps or you have multiple GitHub orgs. See the [OAuth Setup Guide](docs/guides/oauth-setup.md) or [Personal Access Token Setup Guide](docs/guides/personal-access-token-setup.md) for detailed instructions.
 
+`make build` produces a development binary: it does not prompt to restart into an installed app bundle, and the app restart endpoint is disabled. Restart the binary manually after rebuilding.
+
 <details>
 <summary><strong>More options</strong></summary>
 
@@ -190,6 +192,8 @@ make backend-dev
 # Terminal 2: Frontend
 make frontend-dev
 ```
+
+`make backend-dev` also uses development build behavior, so restart the backend manually when needed.
 
 Open `http://localhost:5173`
 

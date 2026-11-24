@@ -123,7 +123,8 @@ type UpdateCheckResponse struct {
 
 // VersionResponse represents the current version of the application
 type VersionResponse struct {
-	Version string `json:"version"`
+	Version       string `json:"version"`
+	IsDevelopment bool   `json:"isDevelopment,omitempty"`
 }
 
 // RestartResponse represents the response from restarting the application

@@ -73,7 +73,7 @@ frontend-install:
 	@echo "✓ Frontend dependencies installed"
 
 backend-dev:
-	cd backend && CGO_ENABLED=1 go run ./cmd/octobud --port 8080 --no-open --frontend-url http://localhost:5173
+	cd backend && CGO_ENABLED=1 go run -ldflags="-X github.com/octobud-hq/octobud/backend/internal/version.Development=true" ./cmd/octobud --port 8080 --no-open --frontend-url http://localhost:5173
 
 frontend-dev:
 	cd frontend && npm run dev
@@ -145,7 +145,7 @@ build: frontend-install
 	@echo "  Step 3: Building Go binary..."
 	@mkdir -p bin
 	@VERSION=$$(git describe --tags --dirty --always 2>/dev/null | sed 's/^v//' || echo "dev"); \
-	cd backend && CGO_ENABLED=1 go build -ldflags="-s -w -X github.com/octobud-hq/octobud/backend/internal/version.Version=$$VERSION" -o ../bin/octobud ./cmd/octobud
+	cd backend && CGO_ENABLED=1 go build -ldflags="-s -w -X github.com/octobud-hq/octobud/backend/internal/version.Version=$$VERSION -X github.com/octobud-hq/octobud/backend/internal/version.Development=true" -o ../bin/octobud ./cmd/octobud
 	@echo ""
 	@echo "✓ Build complete!"
 	@echo "  Binary: bin/octobud"
