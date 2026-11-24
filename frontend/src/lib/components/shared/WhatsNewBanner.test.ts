@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { getVersion } from "$lib/api/user";
 import WhatsNewBanner from "./WhatsNewBanner.svelte";
 
@@ -31,19 +32,23 @@ afterEach(() => {
 });
 
 describe("WhatsNewBanner", () => {
-	it("does not show or update the baseline for development builds", async () => {
-		localStorage.setItem(STORAGE_KEY, "0.3.4");
-		vi.mocked(getVersion).mockResolvedValue({
-			version: "0.3.4-56-g9479bd0",
-			isDevelopment: true,
-		});
+	it.each([null, "0.3.3"])(
+		"does not show or update the baseline for development builds (last seen: %s)",
+		async (lastSeen) => {
+			if (lastSeen) localStorage.setItem(STORAGE_KEY, lastSeen);
+			vi.mocked(getVersion).mockResolvedValue({
+				version: "0.3.4-56-g9479bd0",
+				isDevelopment: true,
+			});
 
-		render(WhatsNewBanner);
+			render(WhatsNewBanner);
 
-		await waitFor(() => expect(getVersion).toHaveBeenCalledOnce());
-		expect(screen.queryByText(/Octobud updated to/)).not.toBeInTheDocument();
-		expect(localStorage.getItem(STORAGE_KEY)).toBe("0.3.4");
-	});
+			await waitFor(() => expect(getVersion).toHaveBeenCalledOnce());
+			await tick();
+			expect(screen.queryByText(/Octobud updated to/)).not.toBeInTheDocument();
+			expect(localStorage.getItem(STORAGE_KEY)).toBe(lastSeen);
+		}
+	);
 
 	it("continues to show the banner for a release build", async () => {
 		vi.mocked(getVersion).mockResolvedValue({ version: "0.4.0" });
