@@ -80,6 +80,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. -->
 		if (!browser) return;
 		try {
 			const res = await getVersion();
+			if (res?.isDevelopment) return;
 			if (!res?.version) {
 				console.warn("WhatsNewBanner: getVersion() returned no version, skipping banner");
 				return;

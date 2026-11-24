@@ -101,6 +101,36 @@ func TestInstalledVersionBuildModes(t *testing.T) {
 	}
 }
 
+func TestGetVersionReportsDevelopmentMode(t *testing.T) {
+	oldDevelopment := version.Development
+	t.Cleanup(func() { version.Development = oldDevelopment })
+
+	for _, tt := range []struct {
+		name        string
+		development string
+		want        bool
+	}{
+		{name: "development build", development: "true", want: true},
+		{name: "packaged build", development: "false"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			version.Development = tt.development
+			handler := New(zap.NewNop(), nil)
+			w := httptest.NewRecorder()
+			handler.HandleGetVersion(w, httptest.NewRequest(http.MethodGet, "/api/user/version", nil))
+
+			require.Equal(t, http.StatusOK, w.Code)
+			var response struct {
+				Version       string `json:"version"`
+				IsDevelopment bool   `json:"isDevelopment"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			require.Equal(t, version.Get(), response.Version)
+			require.Equal(t, tt.want, response.IsDevelopment)
+		})
+	}
+}
+
 func TestRestartBuildModes(t *testing.T) {
 	oldDevelopment := version.Development
 	t.Cleanup(func() { version.Development = oldDevelopment })

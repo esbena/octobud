@@ -229,7 +229,8 @@ func (h *Handler) HandleCheckForUpdates(w http.ResponseWriter, r *http.Request) 
 // Returns the current version of the application
 func (h *Handler) HandleGetVersion(w http.ResponseWriter, r *http.Request) {
 	response := VersionResponse{
-		Version: version.Get(),
+		Version:       version.Get(),
+		IsDevelopment: version.IsDevelopment(),
 	}
 
 	helpers.WriteJSON(w, http.StatusOK, response)

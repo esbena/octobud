@@ -532,6 +532,7 @@ export async function checkForUpdates(
 
 export interface VersionResponse {
 	version: string;
+	isDevelopment?: boolean;
 }
 
 export async function getVersion(fetchImpl?: typeof fetch): Promise<VersionResponse> {
